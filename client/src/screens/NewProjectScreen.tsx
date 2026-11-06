@@ -1,0 +1,68 @@
+import { useEffect, useState } from 'react'
+import { Pressable, Text, View } from 'react-native'
+import { ApiError, api } from '../api'
+import { todayIso } from '../format'
+import { go } from '../nav'
+import type { Template } from '../types'
+import { Banner, Button, DateField, Field, Loading, Muted, Screen, Title } from '../ui'
+
+export function NewProjectScreen() {
+  const [templates, setTemplates] = useState<Template[] | null>(null)
+  const [templateId, setTemplateId] = useState('')
+  const [name, setName] = useState('')
+  const [startDate, setStartDate] = useState(todayIso())
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    api.templates()
+      .then((result) => {
+        const active = result.templates.filter((template) => !template.archived && template.stages.length > 0)
+        setTemplates(active)
+        setTemplateId(active[0]?.id ?? '')
+      })
+      .catch((caught) => setError(caught instanceof ApiError ? caught.message : 'Não foi possível carregar os templates.'))
+  }, [])
+
+  async function submit(): Promise<void> {
+    setPending(true)
+    setError('')
+    try {
+      const result = await api.createProject({ name, startDate, templateId })
+      go(`/projetos/${result.project.id}`)
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : 'Não foi possível criar o projeto.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  if (!templates && !error) return <Loading />
+  const selected = templates?.find((template) => template.id === templateId)
+
+  return (
+    <Screen>
+      <Title>Novo projeto</Title>
+      <Muted>Escolha um template ativo. As etapas são copiadas para este projeto. A duração de cada etapa será a soma das tarefas.</Muted>
+      {error ? <Banner message={error} /> : null}
+      <Field label="Nome" value={name} onChangeText={setName} />
+      <View className="gap-1.5">
+        <Text className="text-sm font-semibold text-ink">Data de início</Text>
+        <DateField value={startDate} onChange={setStartDate} />
+      </View>
+      <View className="gap-2">
+        <Text className="font-semibold text-ink">Template</Text>
+        {templates?.length === 0 ? <Muted>Nenhum template ativo.</Muted> : null}
+        {templates?.map((template) => (
+          <Pressable key={template.id} onPress={() => setTemplateId(template.id)}>
+            <Text className={template.id === templateId ? 'font-bold text-brand' : 'text-ink'}>
+              {template.name} · {template.stages.length} etapas
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {selected ? <Muted>{selected.stages.map((stage) => stage.name).join(' → ')}</Muted> : null}
+      <Button label={pending ? 'Criando...' : 'Criar projeto'} onPress={() => void submit()} disabled={pending || !templateId} />
+    </Screen>
+  )
+}

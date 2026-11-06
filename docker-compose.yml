@@ -1,0 +1,75 @@
+name: producao-editorial
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: producao-editorial-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+    volumes:
+      - producao-editorial-pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
+    networks:
+      - producao-editorial-net
+    ports:
+      - "127.0.0.1:54329:5432"
+    mem_limit: 256m
+    cpus: 0.50
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    container_name: producao-editorial-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://editorial_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PORT: "8080"
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      HOME: /tmp
+      TMPDIR: /tmp
+    ports:
+      - "127.0.0.1:8088:8080"
+    networks:
+      - producao-editorial-net
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 384m
+    cpus: 0.50
+    user: "node"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+networks:
+  producao-editorial-net:
+    name: producao-editorial-net
+    driver: bridge
+
+volumes:
+  producao-editorial-pgdata:
+    name: producao-editorial-pgdata

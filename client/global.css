@@ -1,0 +1,27 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+@import "nativewind/theme";
+
+@theme {
+  --color-canvas: #f3eee6;
+  --color-paper: #fffcf8;
+  --color-ink: #1c2430;
+  --color-muted: #5e6a78;
+  --color-line: #e4d9cb;
+  --color-brand: #1d4e89;
+  --color-ok: #1f7a4d;
+  --color-warn: #c48a12;
+  --color-wait: #b7b1a8;
+  --color-idle: #e4dfd6;
+  --color-off: #6f6a64;
+  --color-danger: #9b3a3a;
+  --color-danger-bg: #f8e8e6;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
