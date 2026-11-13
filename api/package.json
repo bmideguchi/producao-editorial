@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "tsx --test test/domain.test.ts test/sync.test.ts test/schedule.test.ts test/allocation.test.ts test/removal.test.ts test/template-tasks.test.ts"
+    "test": "tsx --test test/domain.test.ts test/sync.test.ts test/schedule.test.ts test/allocation.test.ts test/removal.test.ts test/template-tasks.test.ts test/scope.test.ts test/suppliers.test.ts"
   },
   "engines": {
     "node": ">=22"

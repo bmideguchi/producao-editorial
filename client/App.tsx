@@ -12,6 +12,9 @@ import { TemplateFormScreen, TemplateListScreen } from './src/screens/TemplateSc
 import { AllocationScreen } from './src/screens/AllocationScreen'
 import { ArchivedProjectsScreen } from './src/screens/ArchivedProjectsScreen'
 import { CalendarScreen } from './src/screens/CalendarScreen'
+import { ClientListScreen } from './src/screens/ClientScreens'
+import { SupplierListScreen } from './src/screens/SupplierScreens'
+import { ServiceListScreen } from './src/screens/ServiceScreens'
 import { UserFormScreen, UserListScreen } from './src/screens/UserScreens'
 import { Loading, Screen, Title } from './src/ui'
 
@@ -46,7 +49,7 @@ function Root() {
   }
 
   const admin = user.role === 'admin'
-  const adminOnly = path.startsWith('/usuarios') || path.startsWith('/templates') || path.startsWith('/calendario') || path.startsWith('/alocacao') || path.startsWith('/projetos-arquivados') || path === '/projetos/novo'
+  const adminOnly = path.startsWith('/usuarios') || path.startsWith('/templates') || path.startsWith('/calendario') || path.startsWith('/servicos') || path.startsWith('/clientes') || path.startsWith('/fornecedores') || path.startsWith('/alocacao') || path.startsWith('/projetos-arquivados') || path === '/projetos/novo'
   const body = !admin && adminOnly ? <Denied /> : <Routes path={path} />
 
   return (
@@ -56,6 +59,8 @@ function Root() {
         <Text className="mt-1 text-sm text-muted">{user.name}</Text>
         <Text className="mb-1 mt-8 text-xs font-semibold uppercase tracking-wide text-muted">Operação</Text>
         <NavLink label="Projetos" path="/projetos" current={path === '/projetos' || path.startsWith('/projetos/')} />
+        {admin ? <NavLink label="Clientes" path="/clientes" current={path.startsWith('/clientes')} /> : null}
+        {admin ? <NavLink label="Fornecedores" path="/fornecedores" current={path.startsWith('/fornecedores')} /> : null}
         {admin ? (
           <>
             <Text className="mb-1 mt-8 text-xs font-semibold uppercase tracking-wide text-muted">Reports</Text>
@@ -63,6 +68,7 @@ function Root() {
             <Text className="mb-1 mt-8 text-xs font-semibold uppercase tracking-wide text-muted">Configuração</Text>
             <NavLink label="Templates" path="/templates" current={path.startsWith('/templates')} />
             <NavLink label="Equipe" path="/usuarios" current={path.startsWith('/usuarios')} />
+            <NavLink label="Serviços" path="/servicos" current={path.startsWith('/servicos')} />
             <NavLink label="Calendário" path="/calendario" current={path.startsWith('/calendario')} />
             <NavLink label="Projetos arquivados" path="/projetos-arquivados" current={path.startsWith('/projetos-arquivados')} />
             <SignOut onPress={() => void signOut().then(() => go('/login'))} />
@@ -108,6 +114,9 @@ function Routes({ path }: { path: string }) {
   if (path === '/templates/novo') return <TemplateFormScreen id={null} />
   if (path === '/usuarios') return <UserListScreen />
   if (path === '/calendario') return <CalendarScreen />
+  if (path === '/servicos') return <ServiceListScreen />
+  if (path === '/clientes') return <ClientListScreen />
+  if (path === '/fornecedores') return <SupplierListScreen />
   if (path === '/alocacao') return <AllocationScreen />
   if (path === '/projetos-arquivados') return <ArchivedProjectsScreen />
   if (path === '/usuarios/novo') return <UserFormScreen id={null} />

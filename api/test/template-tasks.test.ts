@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { after, describe, it } from 'node:test'
+import { before, after, describe, it } from 'node:test'
 import type { PoolClient } from 'pg'
 import { createPool } from '../src/db.ts'
-import { createProject, createTemplate, getProject, saveTemplate } from '../src/data.ts'
+import { createProject, createTemplate, getProject, saveTemplate, updateSubtask } from '../src/data.ts'
 import { HttpError } from '../src/http.ts'
+import { migrate } from '../src/migrate.ts'
 
 function databaseUrl(): string {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL
@@ -17,6 +18,10 @@ function databaseUrl(): string {
 }
 
 const pool = createPool(databaseUrl())
+
+before(async () => {
+  await migrate(pool)
+})
 
 after(async () => {
   await pool.end()
@@ -167,6 +172,42 @@ describe('tarefas do template', () => {
           && error.statusCode === 400
           && error.message === 'A predecessora não pode ser de uma etapa anterior à imediatamente anterior.',
       )
+    })
+  })
+
+  it('excluir o template mantém as tarefas do projeto editáveis', async () => {
+    await withRollback(async (client) => {
+      const template = await createTemplate(client, {
+        name: `Solto ${randomUUID()}`,
+        stages: [{
+          name: 'Pauta',
+          tasks: [{ name: 'Ler', durationDays: 2 }],
+        }],
+      })
+      const project = await createProject(client, {
+        name: `Projeto solto ${randomUUID()}`,
+        startDate: '2026-11-06',
+        templateId: template.id,
+      })
+      await client.query('DELETE FROM templates WHERE id = $1', [template.id])
+      const kept = await getProject(client, project.id)
+      assert.ok(kept)
+      assert.equal(kept.templateId, null)
+      assert.equal(kept.stages.length, 1)
+      assert.equal(kept.stages[0].name, 'Pauta')
+      assert.equal(kept.stages[0].subtasks.length, 1)
+      const task = kept.stages[0].subtasks[0]
+      const updated = await updateSubtask(
+        client,
+        project.id,
+        kept.stages[0].id,
+        task.id,
+        { name: 'Ler de novo' },
+        { id: randomUUID(), role: 'admin' },
+        '2026-11-06',
+      )
+      assert.equal(updated.stages[0].subtasks[0].name, 'Ler de novo')
+      assert.equal(updated.stages[0].subtasks[0].durationDays, 2)
     })
   })
 })

@@ -49,6 +49,7 @@ export type OperatorOnStage = {
 
 export type TaskAssignee = {
   id: string
+  kind: 'user' | 'supplier'
   name: string
   active: boolean
   deleted: boolean
@@ -82,16 +83,45 @@ export type StageDetail = {
   subtasks: Subtask[]
 }
 
+export type ClientRecord = {
+  id: string
+  name: string
+}
+
+export type SupplierRecord = {
+  id: string
+  name: string
+}
+
 export type ProjectDetail = {
   id: string
   name: string
-  templateId: string
-  templateName: string
+  templateId: string | null
+  templateName: string | null
   startDate: string
   archived: boolean
+  description: string
+  clientId: string | null
+  clientName: string
+  supplierId: string | null
+  supplierName: string
   subtasksDone: number
   subtasksTotal: number
   stages: StageDetail[]
+  scope: ScopeLine[]
+}
+
+export type ScopeLine = {
+  serviceId: string
+  serviceName: string
+  allocationDays: number
+  quantity: number
+}
+
+export type ServiceRecord = {
+  id: string
+  name: string
+  allocationDays: number
 }
 
 export type TemplateTask = {

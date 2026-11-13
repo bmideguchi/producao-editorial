@@ -1,4 +1,4 @@
-import type { AllocationReport, ArchivedProject, ProjectDetail, ProjectListItem, SessionUser, Template, TemplateStageInput, WorkCalendar } from './types'
+import type { AllocationReport, ArchivedProject, ClientRecord, ProjectDetail, ProjectListItem, ServiceRecord, SessionUser, SupplierRecord, Template, TemplateStageInput, WorkCalendar } from './types'
 
 const TOKEN_KEY = 'producao-editorial-token'
 
@@ -90,11 +90,42 @@ export const api = {
   async project(id: string): Promise<{ project: ProjectDetail }> {
     return request(`/api/projects/${id}`)
   },
-  async createProject(body: { name: string; startDate: string; templateId: string }): Promise<{ project: ProjectDetail }> {
+  async createProject(body: { name: string; startDate: string; templateId: string; scope?: { serviceId: string; quantity: number; allocationDays?: number }[] }): Promise<{ project: ProjectDetail }> {
     return request('/api/projects', { method: 'POST', body })
   },
-  async updateProject(id: string, body: { name?: string; startDate?: string }): Promise<{ project: ProjectDetail }> {
+  async updateProject(id: string, body: {
+    name?: string
+    startDate?: string
+    scope?: { serviceId: string; quantity: number; allocationDays?: number }[]
+    description?: string
+    clientId?: string | null
+    supplierId?: string | null
+  }): Promise<{ project: ProjectDetail }> {
     return request(`/api/projects/${id}`, { method: 'PATCH', body })
+  },
+  async clients(): Promise<{ clients: ClientRecord[] }> {
+    return request('/api/clients')
+  },
+  async createClient(body: { name: string }): Promise<{ client: ClientRecord }> {
+    return request('/api/clients', { method: 'POST', body })
+  },
+  async updateClient(id: string, body: { name: string }): Promise<{ client: ClientRecord }> {
+    return request(`/api/clients/${id}`, { method: 'PATCH', body })
+  },
+  async deleteClient(id: string): Promise<void> {
+    await request(`/api/clients/${id}`, { method: 'DELETE' })
+  },
+  async suppliers(): Promise<{ suppliers: SupplierRecord[] }> {
+    return request('/api/suppliers')
+  },
+  async createSupplier(body: { name: string }): Promise<{ supplier: SupplierRecord }> {
+    return request('/api/suppliers', { method: 'POST', body })
+  },
+  async updateSupplier(id: string, body: { name: string }): Promise<{ supplier: SupplierRecord }> {
+    return request(`/api/suppliers/${id}`, { method: 'PATCH', body })
+  },
+  async deleteSupplier(id: string): Promise<void> {
+    await request(`/api/suppliers/${id}`, { method: 'DELETE' })
   },
   async archiveProject(id: string, password: string): Promise<void> {
     await request(`/api/projects/${id}/archive`, { method: 'POST', body: { password } })
@@ -124,7 +155,7 @@ export const api = {
       done?: boolean
       startDate?: string | null
       predecessorId?: string | null
-      allocation?: { userId: string; startDate: string; durationDays: number }
+      allocation?: { userId?: string; supplierId?: string; startDate: string; durationDays: number }
     },
   ): Promise<{ project: ProjectDetail }> {
     return request(`/api/projects/${projectId}/stages/${stageId}/subtasks/${subtaskId}`, { method: 'PATCH', body })
@@ -140,6 +171,18 @@ export const api = {
   },
   async saveCalendar(calendar: WorkCalendar): Promise<{ calendar: WorkCalendar }> {
     return request('/api/calendar', { method: 'PUT', body: calendar })
+  },
+  async services(): Promise<{ services: ServiceRecord[] }> {
+    return request('/api/services')
+  },
+  async createService(body: { name: string; allocationDays: number }): Promise<{ service: ServiceRecord }> {
+    return request('/api/services', { method: 'POST', body })
+  },
+  async updateService(id: string, body: { name?: string; allocationDays?: number }): Promise<{ service: ServiceRecord }> {
+    return request(`/api/services/${id}`, { method: 'PATCH', body })
+  },
+  async deleteService(id: string): Promise<void> {
+    await request(`/api/services/${id}`, { method: 'DELETE' })
   },
   async allocation(month: string): Promise<AllocationReport> {
     return request(`/api/reports/allocation?month=${month}`)

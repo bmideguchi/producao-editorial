@@ -3,7 +3,8 @@ import { Pressable, Text, View } from 'react-native'
 import { ApiError, api } from '../api'
 import { todayIso } from '../format'
 import { go } from '../nav'
-import type { Template } from '../types'
+import type { ScopeLine, Template } from '../types'
+import { ScopeEditor } from './ScopeEditor'
 import { Banner, Button, DateField, Field, Loading, Muted, Screen, Title } from '../ui'
 
 export function NewProjectScreen() {
@@ -11,6 +12,7 @@ export function NewProjectScreen() {
   const [templateId, setTemplateId] = useState('')
   const [name, setName] = useState('')
   const [startDate, setStartDate] = useState(todayIso())
+  const [scope, setScope] = useState<ScopeLine[]>([])
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
 
@@ -28,7 +30,12 @@ export function NewProjectScreen() {
     setPending(true)
     setError('')
     try {
-      const result = await api.createProject({ name, startDate, templateId })
+      const result = await api.createProject({
+        name,
+        startDate,
+        templateId,
+        scope: scope.map((line) => ({ serviceId: line.serviceId, quantity: line.quantity, allocationDays: line.allocationDays })),
+      })
       go(`/projetos/${result.project.id}`)
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Não foi possível criar o projeto.')
@@ -43,7 +50,7 @@ export function NewProjectScreen() {
   return (
     <Screen>
       <Title>Novo projeto</Title>
-      <Muted>Escolha um template ativo. As etapas são copiadas para este projeto. A duração de cada etapa será a soma das tarefas.</Muted>
+      <Muted>Escolha um template ativo. As etapas e as tarefas do template nascem neste projeto. O escopo diz quais serviços, e quantos, serão realizados.</Muted>
       {error ? <Banner message={error} /> : null}
       <Field label="Nome" value={name} onChangeText={setName} />
       <View className="gap-1.5">
@@ -62,6 +69,12 @@ export function NewProjectScreen() {
         ))}
       </View>
       {selected ? <Muted>{selected.stages.map((stage) => stage.name).join(' → ')}</Muted> : null}
+      <ScopeEditor scope={scope} admin onChange={(lines) => setScope(lines.map((line) => ({
+        serviceId: line.serviceId,
+        serviceName: '',
+        allocationDays: line.allocationDays,
+        quantity: line.quantity,
+      })))} />
       <Button label={pending ? 'Criando...' : 'Criar projeto'} onPress={() => void submit()} disabled={pending || !templateId} />
     </Screen>
   )

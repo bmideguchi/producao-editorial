@@ -7,15 +7,24 @@ import {
   archiveProject,
   assertLastAdminSurvives,
   activateStage,
+  createClient,
   createProject,
+  createService,
   createSubtask,
+  createSupplier,
   createTemplate,
   deleteArchivedProject,
+  deleteClient,
+  deleteService,
+  deleteSupplier,
   deleteSubtask,
   deleteUser,
   getProject,
   listArchivedProjects,
+  listClients,
   listProjects,
+  listServices,
+  listSuppliers,
   listUsers,
   loadCalendar,
   loadTemplate,
@@ -24,8 +33,11 @@ import {
   reorderSubtasks,
   saveTemplate,
   setCompletion,
+  updateClient,
   updateProject,
+  updateService,
   updateSubtask,
+  updateSupplier,
   type PublicUser,
   type Role,
 } from './data.js'
@@ -56,6 +68,18 @@ const passwordSchema = z.string().min(8, 'A senha precisa ter ao menos 8 caracte
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Informe a data no formato AAAA-MM-DD.')
 const uuidSchema = z.string().uuid()
 const durationSchema = z.number().int().positive('A duração precisa ser um número inteiro de dias maior que zero.')
+const allocationDaysSchema = z.number().positive('O tempo de alocação precisa ser maior que zero.').max(365)
+const scopeSchema = z.array(z.object({
+  serviceId: uuidSchema,
+  quantity: z.number().int().positive('A quantidade precisa ser um número inteiro maior que zero.'),
+  allocationDays: allocationDaysSchema.optional(),
+}))
+const descriptionSchema = z.string().trim().max(4000, 'A descrição pode ter no máximo 4000 caracteres.')
+const clientIdSchema = z.string().uuid().nullable()
+const serviceBody = z.object({
+  name: nameSchema,
+  allocationDays: allocationDaysSchema,
+})
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -342,8 +366,6 @@ export async function buildApp(pool: Pool, clock: Clock): Promise<FastifyInstanc
   app.delete('/api/templates/:id', async (request, reply) => {
     requireAdmin(request)
     const params = z.object({ id: uuidSchema }).parse(request.params)
-    const used = await pool.query('SELECT 1 FROM projects WHERE template_id = $1 LIMIT 1', [params.id])
-    if (used.rowCount) throw conflict('Este template tem projetos e não pode ser excluído. Arquive-o.')
     const deleted = await pool.query('DELETE FROM templates WHERE id = $1', [params.id])
     if (!deleted.rowCount) throw notFound('Template não encontrado.')
     return reply.code(204).send()
@@ -373,6 +395,7 @@ export async function buildApp(pool: Pool, clock: Clock): Promise<FastifyInstanc
       name: nameSchema,
       startDate: dateSchema,
       templateId: uuidSchema,
+      scope: scopeSchema.optional(),
     }).parse(request.body)
     const project = await withTransaction(pool, (client) => createProject(client, body))
     return reply.code(201).send({ project: toProjectDetail(project, true) })
@@ -391,9 +414,139 @@ export async function buildApp(pool: Pool, clock: Clock): Promise<FastifyInstanc
     const body = z.object({
       name: nameSchema.optional(),
       startDate: dateSchema.optional(),
+      scope: scopeSchema.optional(),
+      description: descriptionSchema.optional(),
+      clientId: clientIdSchema.optional(),
+      supplierId: clientIdSchema.optional(),
     }).parse(request.body)
     const project = await withTransaction(pool, (client) => updateProject(client, params.id, body))
     return { project: toProjectDetail(project, true) }
+  })
+
+  app.get('/api/clients', async (request) => {
+    requireAdmin(request)
+    return { clients: await listClients(pool) }
+  })
+
+  app.post('/api/clients', async (request, reply) => {
+    requireAdmin(request)
+    const body = z.object({ name: nameSchema }).parse(request.body)
+    try {
+      const client = await withTransaction(pool, (db) => createClient(db, body))
+      return reply.code(201).send({ client })
+    } catch (error) {
+      if (isUniqueViolation(error)) throw conflict('Já existe um cliente com este nome.')
+      throw error
+    }
+  })
+
+  app.patch('/api/clients/:id', async (request) => {
+    requireAdmin(request)
+    const params = z.object({ id: uuidSchema }).parse(request.params)
+    const body = z.object({ name: nameSchema }).parse(request.body)
+    try {
+      const client = await withTransaction(pool, (db) => updateClient(db, params.id, body))
+      return { client }
+    } catch (error) {
+      if (isUniqueViolation(error)) throw conflict('Já existe um cliente com este nome.')
+      throw error
+    }
+  })
+
+  app.delete('/api/clients/:id', async (request, reply) => {
+    requireAdmin(request)
+    const params = z.object({ id: uuidSchema }).parse(request.params)
+    try {
+      await withTransaction(pool, (db) => deleteClient(db, params.id))
+    } catch (error) {
+      if (isForeignKeyViolation(error)) throw conflict('Este cliente está em um projeto e não pode ser excluído.')
+      throw error
+    }
+    return reply.code(204).send()
+  })
+
+  app.get('/api/suppliers', async (request) => {
+    requireAdmin(request)
+    return { suppliers: await listSuppliers(pool) }
+  })
+
+  app.post('/api/suppliers', async (request, reply) => {
+    requireAdmin(request)
+    const body = z.object({ name: nameSchema }).parse(request.body)
+    try {
+      const supplier = await withTransaction(pool, (db) => createSupplier(db, body))
+      return reply.code(201).send({ supplier })
+    } catch (error) {
+      if (isUniqueViolation(error)) throw conflict('Já existe um fornecedor com este nome.')
+      throw error
+    }
+  })
+
+  app.patch('/api/suppliers/:id', async (request) => {
+    requireAdmin(request)
+    const params = z.object({ id: uuidSchema }).parse(request.params)
+    const body = z.object({ name: nameSchema }).parse(request.body)
+    try {
+      const supplier = await withTransaction(pool, (db) => updateSupplier(db, params.id, body))
+      return { supplier }
+    } catch (error) {
+      if (isUniqueViolation(error)) throw conflict('Já existe um fornecedor com este nome.')
+      throw error
+    }
+  })
+
+  app.delete('/api/suppliers/:id', async (request, reply) => {
+    requireAdmin(request)
+    const params = z.object({ id: uuidSchema }).parse(request.params)
+    try {
+      await withTransaction(pool, (db) => deleteSupplier(db, params.id))
+    } catch (error) {
+      if (isForeignKeyViolation(error)) throw conflict('Este fornecedor está em uso e não pode ser excluído.')
+      throw error
+    }
+    return reply.code(204).send()
+  })
+
+  app.get('/api/services', async (request) => {
+    requireAdmin(request)
+    return { services: await listServices(pool) }
+  })
+
+  app.post('/api/services', async (request, reply) => {
+    requireAdmin(request)
+    const body = serviceBody.parse(request.body)
+    try {
+      const service = await withTransaction(pool, (client) => createService(client, body))
+      return reply.code(201).send({ service })
+    } catch (error) {
+      if (isUniqueViolation(error)) throw conflict('Já existe um serviço com este nome.')
+      throw error
+    }
+  })
+
+  app.patch('/api/services/:id', async (request) => {
+    requireAdmin(request)
+    const params = z.object({ id: uuidSchema }).parse(request.params)
+    const body = serviceBody.partial().parse(request.body)
+    try {
+      const service = await withTransaction(pool, (client) => updateService(client, params.id, body))
+      return { service }
+    } catch (error) {
+      if (isUniqueViolation(error)) throw conflict('Já existe um serviço com este nome.')
+      throw error
+    }
+  })
+
+  app.delete('/api/services/:id', async (request, reply) => {
+    requireAdmin(request)
+    const params = z.object({ id: uuidSchema }).parse(request.params)
+    try {
+      await withTransaction(pool, (client) => deleteService(client, params.id))
+    } catch (error) {
+      if (isForeignKeyViolation(error)) throw conflict('Este serviço está no escopo de um projeto e não pode ser excluído.')
+      throw error
+    }
+    return reply.code(204).send()
   })
 
   app.get('/api/calendar', async (request) => {
@@ -468,9 +621,12 @@ export async function buildApp(pool: Pool, clock: Clock): Promise<FastifyInstanc
     const user = requireUser(request)
     const params = z.object({ id: uuidSchema, stageId: uuidSchema, subtaskId: uuidSchema }).parse(request.params)
     const allocationSchema = z.object({
-      userId: uuidSchema,
+      userId: uuidSchema.optional(),
+      supplierId: uuidSchema.optional(),
       startDate: dateSchema,
       durationDays: durationSchema,
+    }).refine((value) => Number(Boolean(value.userId)) + Number(Boolean(value.supplierId)) === 1, {
+      message: 'Escolha um profissional.',
     })
     const body = user.role === 'admin'
       ? z.object({
@@ -596,5 +752,9 @@ export function sendEmpty(reply: FastifyReply): FastifyReply {
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505'
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === '23503'
 }
 

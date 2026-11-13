@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg'
-import { loadCalendar, removedUserName } from './data.js'
+import { loadCalendar, removedSupplierName, removedUserName } from './data.js'
 import { addDays, isWorkingDay } from './domain.js'
 import { badRequest } from './http.js'
 
@@ -56,18 +56,19 @@ export async function allocationReport(db: Db, month: string): Promise<Allocatio
   const { start, end, days } = daysOfMonth(month)
   const calendar = await loadCalendar(db)
   const spans = await db.query<{
-    user_id: string
+    person_id: string
     start_date: string
     end_date: string
     project_name: string
     task_name: string
   }>(
-    `SELECT task.assignee_id AS user_id, task.start_date, task.end_date,
+    `SELECT COALESCE(task.assignee_id, task.supplier_id) AS person_id,
+            task.start_date, task.end_date,
             project.name AS project_name, task.name AS task_name
      FROM subtasks AS task
      JOIN project_stages AS stage ON stage.id = task.stage_id
      JOIN projects AS project ON project.id = stage.project_id
-     WHERE task.assignee_id IS NOT NULL
+     WHERE (task.assignee_id IS NOT NULL OR task.supplier_id IS NOT NULL)
        AND project.archived = false
        AND task.start_date < $2::date
        AND task.end_date >= $1::date`,
@@ -75,10 +76,10 @@ export async function allocationReport(db: Db, month: string): Promise<Allocatio
   )
   const totals = new Map<string, AllocationEntry[][]>()
   for (const span of spans.rows) {
-    let tasks = totals.get(span.user_id)
+    let tasks = totals.get(span.person_id)
     if (!tasks) {
       tasks = days.map(() => [])
-      totals.set(span.user_id, tasks)
+      totals.set(span.person_id, tasks)
     }
     addSpan(tasks, days, span.start_date, span.end_date, {
       project: span.project_name,
@@ -109,6 +110,19 @@ export async function allocationReport(db: Db, month: string): Promise<Allocatio
         tasks,
       }
     })
+  const usersIds = new Set(users.rows.map((user) => user.id))
+  const suppliers = await db.query<{ id: string; name: string }>('SELECT id, name FROM suppliers')
+  const supplierName = new Map(suppliers.rows.map((supplier) => [supplier.id, supplier.name]))
+  const supplierPeople = [...totals.entries()]
+    .filter(([id, tasks]) => !usersIds.has(id) && tasks.some((day) => day.length > 0))
+    .map(([id, tasks]) => ({
+      id,
+      name: supplierName.get(id) ?? removedSupplierName,
+      counts: tasks.map((day) => day.length),
+      tasks,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR') || left.id.localeCompare(right.id))
+  people.push(...supplierPeople)
   return {
     month,
     days,

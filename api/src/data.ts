@@ -22,6 +22,7 @@ import { badRequest, conflict, forbidden, notFound } from './http.js'
 type Db = Pool | PoolClient
 
 export const removedUserName = 'Usuário excluído'
+export const removedSupplierName = 'Fornecedor excluído'
 
 export type Role = 'admin' | 'operator'
 
@@ -45,6 +46,7 @@ export type OperatorOnStage = {
 
 export type TaskAssignee = {
   id: string
+  kind: 'user' | 'supplier'
   name: string
   active: boolean
   deleted: boolean
@@ -78,16 +80,45 @@ export type StageDetail = {
   subtasks: SubtaskDetail[]
 }
 
+export type ScopeLine = {
+  serviceId: string
+  serviceName: string
+  allocationDays: number
+  quantity: number
+}
+
+export type ServiceRecord = {
+  id: string
+  name: string
+  allocationDays: number
+}
+
+export type ClientRecord = {
+  id: string
+  name: string
+}
+
+export type SupplierRecord = {
+  id: string
+  name: string
+}
+
 export type ProjectDetail = {
   id: string
   name: string
-  templateId: string
-  templateName: string
+  templateId: string | null
+  templateName: string | null
   startDate: string
   archived: boolean
+  description: string
+  clientId: string | null
+  clientName: string
+  supplierId: string | null
+  supplierName: string
   subtasksDone: number
   subtasksTotal: number
   stages: StageDetail[]
+  scope: ScopeLine[]
 }
 
 export type ProjectListFields = {
@@ -182,9 +213,11 @@ type SubtaskRow = {
   done: boolean
   position: number
   assignee_id: string | null
+  supplier_id: string | null
   assignee_name: string | null
   assignee_active: boolean | null
   assignee_deleted: boolean | null
+  supplier_name: string | null
   allocation_start: string | null
   allocation_days: number | null
   start_date: string | null
@@ -216,12 +249,15 @@ async function loadSubtasks(db: Db, stageIds: string[]): Promise<SubtaskRow[]> {
   if (stageIds.length === 0) return []
   const result = await db.query<SubtaskRow>(
     `SELECT t.id, t.stage_id, t.name, t.duration_days, t.done, t.position,
-            t.assignee_id, u.name AS assignee_name, u.active AS assignee_active,
+            t.assignee_id, t.supplier_id,
+            u.name AS assignee_name, u.active AS assignee_active,
             (u.deleted_at IS NOT NULL) AS assignee_deleted,
+            s.name AS supplier_name,
             t.allocation_start, t.allocation_days,
             t.start_date, t.end_date, t.predecessor_id
      FROM subtasks t
      LEFT JOIN users u ON u.id = t.assignee_id
+     LEFT JOIN suppliers s ON s.id = t.supplier_id
      WHERE t.stage_id = ANY($1::uuid[])
      ORDER BY t.position`,
     [stageIds],
@@ -229,35 +265,73 @@ async function loadSubtasks(db: Db, stageIds: string[]): Promise<SubtaskRow[]> {
   return result.rows
 }
 
+function assigneeIdentity(task: SubtaskRow): { kind: 'user' | 'supplier'; id: string } | null {
+  if (task.assignee_id) return { kind: 'user', id: task.assignee_id }
+  if (task.supplier_id) return { kind: 'supplier', id: task.supplier_id }
+  return null
+}
+
 function operatorsOnStage(tasks: readonly SubtaskRow[]): OperatorRow[] {
   const people: OperatorRow[] = []
   const seen = new Set<string>()
   for (const task of tasks) {
-    if (!task.assignee_id) continue
-    const key = `${task.stage_id}:${task.assignee_id}`
+    const identity = assigneeIdentity(task)
+    if (!identity || !task.allocation_start || task.allocation_days === null) continue
+    const key = `${task.stage_id}:${identity.kind}:${identity.id}`
     if (seen.has(key)) continue
     seen.add(key)
-    const assigned = tasks.filter((item) => item.stage_id === task.stage_id && item.assignee_id === task.assignee_id)
+    const assigned = tasks.filter((item) => {
+      const other = assigneeIdentity(item)
+      return item.stage_id === task.stage_id && other?.kind === identity.kind && other.id === identity.id
+    })
+    if (identity.kind === 'supplier') {
+      const missing = !task.supplier_name
+      people.push({
+        stage_id: task.stage_id,
+        id: identity.id,
+        name: task.supplier_name ?? removedSupplierName,
+        active: true,
+        deleted: missing,
+        completed: assigned.every((item) => item.done),
+        start_date: task.allocation_start,
+        duration_days: task.allocation_days,
+      })
+      continue
+    }
     const missing = task.assignee_deleted === true || !task.assignee_name
     people.push({
       stage_id: task.stage_id,
-      id: task.assignee_id,
+      id: identity.id,
       name: missing || !task.assignee_name ? removedUserName : task.assignee_name,
       active: Boolean(task.assignee_active),
       deleted: missing,
       completed: assigned.every((item) => item.done),
-      start_date: task.allocation_start ?? '',
-      duration_days: task.allocation_days ?? 0,
+      start_date: task.allocation_start,
+      duration_days: task.allocation_days,
     })
   }
   return people
 }
 
 function assigneeOf(task: SubtaskRow): TaskAssignee | null {
-  if (!task.assignee_id || !task.allocation_start || task.allocation_days === null) return null
+  const identity = assigneeIdentity(task)
+  if (!identity || !task.allocation_start || task.allocation_days === null) return null
+  if (identity.kind === 'supplier') {
+    const missing = !task.supplier_name
+    return {
+      id: identity.id,
+      kind: 'supplier',
+      name: task.supplier_name ?? removedSupplierName,
+      active: true,
+      deleted: missing,
+      startDate: task.allocation_start,
+      durationDays: task.allocation_days,
+    }
+  }
   const missing = task.assignee_deleted === true || !task.assignee_name
   return {
-    id: task.assignee_id,
+    id: identity.id,
+    kind: 'user',
     name: missing || !task.assignee_name ? removedUserName : task.assignee_name,
     active: Boolean(task.assignee_active),
     deleted: missing,
@@ -266,19 +340,27 @@ function assigneeOf(task: SubtaskRow): TaskAssignee | null {
   }
 }
 
+type ProjectHeader = {
+  id: string
+  name: string
+  template_id: string | null
+  template_name: string | null
+  start_date: string
+  archived: boolean
+  description: string
+  client_id: string | null
+  client_name: string | null
+  supplier_id: string | null
+  supplier_name: string | null
+}
+
 function assembleProject(
-  project: {
-    id: string
-    name: string
-    template_id: string
-    template_name: string
-    start_date: string
-    archived: boolean
-  },
+  project: ProjectHeader,
   stages: StageRow[],
   operators: OperatorRow[],
   subtasks: SubtaskRow[],
   calendar: WorkCalendar,
+  scope: ScopeLine[],
 ): ProjectDetail {
   const stageSubtasks = stages.map((stage) => subtasks.filter((subtask) => subtask.stage_id === stage.id))
   const spans = stageSubtasks.map((items) => stageDurationDays(items.map((subtask) => ({
@@ -345,9 +427,15 @@ function assembleProject(
     templateName: project.template_name,
     startDate: project.start_date,
     archived: project.archived,
+    description: project.description,
+    clientId: project.client_id,
+    clientName: project.client_name ?? '',
+    supplierId: project.supplier_id,
+    supplierName: project.supplier_name ?? '',
     subtasksDone,
     subtasksTotal,
     stages: assembledStages,
+    scope,
   }
 }
 
@@ -371,17 +459,14 @@ export function projectListFields(project: ProjectDetail, admin: boolean): Proje
 }
 
 export async function getProject(db: Db, projectId: string): Promise<ProjectDetail | null> {
-  const result = await db.query<{
-    id: string
-    name: string
-    template_id: string
-    template_name: string
-    start_date: string
-    archived: boolean
-  }>(
-    `SELECT p.id, p.name, p.template_id, t.name AS template_name, p.start_date, p.archived
+  const result = await db.query<ProjectHeader>(
+    `SELECT p.id, p.name, p.template_id, t.name AS template_name, p.start_date, p.archived,
+            p.description, p.client_id, c.name AS client_name,
+            p.supplier_id, s.name AS supplier_name
      FROM projects p
-     JOIN templates t ON t.id = p.template_id
+     LEFT JOIN templates t ON t.id = p.template_id
+     LEFT JOIN clients c ON c.id = p.client_id
+     LEFT JOIN suppliers s ON s.id = p.supplier_id
      WHERE p.id = $1`,
     [projectId],
   )
@@ -391,39 +476,34 @@ export async function getProject(db: Db, projectId: string): Promise<ProjectDeta
   const stageIds = stages.map((stage) => stage.id)
   const subtasks = await loadSubtasks(db, stageIds)
   const calendar = await loadCalendar(db)
-  return assembleProject(project, stages, operatorsOnStage(subtasks), subtasks, calendar)
+  const scope = await loadScope(db, [projectId])
+  return assembleProject(project, stages, operatorsOnStage(subtasks), subtasks, calendar, scope.get(projectId) ?? [])
 }
 
 export async function listProjects(db: Db, filter: { userId?: string }): Promise<ProjectDetail[]> {
   const result = filter.userId
-    ? await db.query<{
-        id: string
-        name: string
-        template_id: string
-        template_name: string
-        start_date: string
-        archived: boolean
-      }>(
-        `SELECT DISTINCT p.id, p.name, p.template_id, t.name AS template_name, p.start_date, p.archived
+    ? await db.query<ProjectHeader>(
+        `SELECT DISTINCT p.id, p.name, p.template_id, t.name AS template_name, p.start_date, p.archived,
+                p.description, p.client_id, c.name AS client_name,
+                p.supplier_id, supplier.name AS supplier_name
          FROM projects p
-         JOIN templates t ON t.id = p.template_id
+         LEFT JOIN templates t ON t.id = p.template_id
+         LEFT JOIN clients c ON c.id = p.client_id
+         LEFT JOIN suppliers supplier ON supplier.id = p.supplier_id
          JOIN project_stages s ON s.project_id = p.id
          JOIN subtasks task ON task.stage_id = s.id
          WHERE p.archived = false AND task.assignee_id = $1
          ORDER BY p.name`,
         [filter.userId],
       )
-    : await db.query<{
-        id: string
-        name: string
-        template_id: string
-        template_name: string
-        start_date: string
-        archived: boolean
-      }>(
-        `SELECT p.id, p.name, p.template_id, t.name AS template_name, p.start_date, p.archived
+    : await db.query<ProjectHeader>(
+        `SELECT p.id, p.name, p.template_id, t.name AS template_name, p.start_date, p.archived,
+                p.description, p.client_id, c.name AS client_name,
+                p.supplier_id, s.name AS supplier_name
          FROM projects p
-         JOIN templates t ON t.id = p.template_id
+         LEFT JOIN templates t ON t.id = p.template_id
+         LEFT JOIN clients c ON c.id = p.client_id
+         LEFT JOIN suppliers s ON s.id = p.supplier_id
          WHERE p.archived = false
          ORDER BY p.name`,
       )
@@ -432,10 +512,11 @@ export async function listProjects(db: Db, filter: { userId?: string }): Promise
   const stageIds = stages.map((stage) => stage.id)
   const subtasks = await loadSubtasks(db, stageIds)
   const calendar = await loadCalendar(db)
+  const scope = await loadScope(db, projects.map((project) => project.id))
   return projects.map((project) => {
     const projectStages = stages.filter((stage) => stage.project_id === project.id)
     const projectTasks = subtasks.filter((task) => projectStages.some((stage) => stage.id === task.stage_id))
-    return assembleProject(project, projectStages, operatorsOnStage(projectTasks), subtasks, calendar)
+    return assembleProject(project, projectStages, operatorsOnStage(projectTasks), subtasks, calendar, scope.get(project.id) ?? [])
   })
 }
 
@@ -971,9 +1052,127 @@ async function activateNewFirstIfDormant(
   await client.query('UPDATE project_stages SET activated_at = $1 WHERE id = $2', [stage.start_date, stage.id])
 }
 
+export type ScopeInput = { serviceId: string; quantity: number; allocationDays?: number }
+
+async function loadScope(db: Db, projectIds: string[]): Promise<Map<string, ScopeLine[]>> {
+  const grouped = new Map<string, ScopeLine[]>()
+  if (projectIds.length === 0) return grouped
+  const result = await db.query<{
+    project_id: string
+    service_id: string
+    name: string
+    allocation_days: number
+    quantity: number
+  }>(
+    `SELECT link.project_id, link.service_id, service.name,
+            link.allocation_days::float8 AS allocation_days, link.quantity
+     FROM project_services link
+     JOIN services service ON service.id = link.service_id
+     WHERE link.project_id = ANY($1::uuid[])
+     ORDER BY service.name`,
+    [projectIds],
+  )
+  for (const row of result.rows) {
+    const lines = grouped.get(row.project_id) ?? []
+    lines.push({
+      serviceId: row.service_id,
+      serviceName: row.name,
+      allocationDays: Number(row.allocation_days),
+      quantity: row.quantity,
+    })
+    grouped.set(row.project_id, lines)
+  }
+  return grouped
+}
+
+export async function replaceProjectScope(client: PoolClient, projectId: string, lines: ScopeInput[]): Promise<void> {
+  const ids = lines.map((line) => line.serviceId)
+  if (new Set(ids).size !== ids.length) {
+    throw badRequest('Cada serviço entra uma vez no escopo. Ajuste a quantidade.')
+  }
+  for (const line of lines) {
+    if (!Number.isInteger(line.quantity) || line.quantity < 1) {
+      throw badRequest('A quantidade precisa ser um número inteiro maior que zero.')
+    }
+  }
+  const defaults = new Map<string, number>()
+  if (ids.length > 0) {
+    const found = await client.query<{ id: string; allocation_days: number }>(
+      'SELECT id, allocation_days::float8 AS allocation_days FROM services WHERE id = ANY($1::uuid[])',
+      [ids],
+    )
+    if (found.rowCount !== ids.length) throw badRequest('Escolha um serviço do catálogo.')
+    for (const row of found.rows) defaults.set(row.id, Number(row.allocation_days))
+  }
+  await client.query('DELETE FROM project_services WHERE project_id = $1', [projectId])
+  for (const line of lines) {
+    const allocationDays = line.allocationDays === undefined
+      ? defaults.get(line.serviceId) ?? 0
+      : allocationDaysOf(line.allocationDays)
+    await client.query(
+      'INSERT INTO project_services (project_id, service_id, quantity, allocation_days) VALUES ($1, $2, $3, $4)',
+      [projectId, line.serviceId, line.quantity, allocationDays],
+    )
+  }
+}
+
+function allocationDaysOf(value: number): number {
+  if (!Number.isFinite(value) || value <= 0 || value > 365) {
+    throw badRequest('O tempo de alocação precisa ser maior que zero.')
+  }
+  const cents = Math.round(value * 100)
+  if (Math.abs(value * 100 - cents) > 1e-6) {
+    throw badRequest('Use no máximo duas casas decimais. Exemplo: 0,25 ou 0,5.')
+  }
+  return cents / 100
+}
+
+export async function listServices(db: Db): Promise<ServiceRecord[]> {
+  const result = await db.query<{ id: string; name: string; allocation_days: number }>(
+    'SELECT id, name, allocation_days::float8 AS allocation_days FROM services ORDER BY name',
+  )
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    allocationDays: Number(row.allocation_days),
+  }))
+}
+
+export async function createService(client: PoolClient, input: { name: string; allocationDays: number }): Promise<ServiceRecord> {
+  const id = randomUUID()
+  const allocationDays = allocationDaysOf(input.allocationDays)
+  await client.query(
+    'INSERT INTO services (id, name, allocation_days) VALUES ($1, $2, $3)',
+    [id, input.name, allocationDays],
+  )
+  return { id, name: input.name, allocationDays }
+}
+
+export async function updateService(
+  client: PoolClient,
+  serviceId: string,
+  input: { name?: string; allocationDays?: number },
+): Promise<ServiceRecord> {
+  const current = await client.query<{ name: string; allocation_days: number }>(
+    'SELECT name, allocation_days::float8 AS allocation_days FROM services WHERE id = $1',
+    [serviceId],
+  )
+  const row = current.rows[0]
+  if (!row) throw notFound('Serviço não encontrado.')
+  const name = input.name ?? row.name
+  const allocationDays = input.allocationDays === undefined ? Number(row.allocation_days) : allocationDaysOf(input.allocationDays)
+  await client.query('UPDATE services SET name = $1, allocation_days = $2 WHERE id = $3', [name, allocationDays, serviceId])
+  return { id: serviceId, name, allocationDays }
+}
+
+export async function deleteService(client: PoolClient, serviceId: string): Promise<void> {
+  const deleted = await client.query('DELETE FROM services WHERE id = $1', [serviceId])
+  if (!deleted.rowCount) throw notFound('Serviço não encontrado.')
+}
+
 export async function createProject(
   client: PoolClient,
-  input: { name: string; startDate: string; templateId: string },
+  input: { name: string; startDate: string; templateId: string; scope?: ScopeInput[] },
 ): Promise<ProjectDetail> {
   const template = await client.query<{ id: string; archived: boolean }>(
     'SELECT id, archived FROM templates WHERE id = $1',
@@ -1010,13 +1209,21 @@ export async function createProject(
     )
     await copyTemplateTasks(client, projectId, stage.id, projectStageId)
   }
+  await replaceProjectScope(client, projectId, input.scope ?? [])
   return requireProject(client, projectId)
 }
 
 export async function updateProject(
   client: PoolClient,
   projectId: string,
-  input: { name?: string; startDate?: string },
+  input: {
+    name?: string
+    startDate?: string
+    scope?: ScopeInput[]
+    description?: string
+    clientId?: string | null
+    supplierId?: string | null
+  },
 ): Promise<ProjectDetail> {
   const current = await requireProject(client, projectId)
   if (current.archived) throw conflict('Projeto arquivado não pode ser editado.')
@@ -1031,7 +1238,95 @@ export async function updateProject(
     )
     await rescheduleProject(client, projectId)
   }
+  if (input.description !== undefined) {
+    await client.query('UPDATE projects SET description = $1 WHERE id = $2', [input.description.trim(), projectId])
+  }
+  if (input.clientId !== undefined) {
+    if (input.clientId !== null) {
+      const found = await client.query('SELECT id FROM clients WHERE id = $1', [input.clientId])
+      if (!found.rowCount) throw badRequest('Escolha um cliente do catálogo.')
+    }
+    await client.query('UPDATE projects SET client_id = $1 WHERE id = $2', [input.clientId, projectId])
+  }
+  if (input.supplierId !== undefined) {
+    if (input.supplierId !== null) {
+      const found = await client.query('SELECT id FROM suppliers WHERE id = $1', [input.supplierId])
+      if (!found.rowCount) throw badRequest('Escolha um fornecedor do catálogo.')
+    }
+    await client.query('UPDATE projects SET supplier_id = $1 WHERE id = $2', [input.supplierId, projectId])
+  }
+  if (input.scope !== undefined) await replaceProjectScope(client, projectId, input.scope)
   return requireProject(client, projectId)
+}
+
+function clientNameOf(value: string): string {
+  const name = value.trim()
+  if (!name) throw badRequest('Informe o nome.')
+  if (name.length > 120) throw badRequest('O nome do cliente pode ter no máximo 120 caracteres.')
+  return name
+}
+
+export async function listClients(db: Db): Promise<ClientRecord[]> {
+  const result = await db.query<ClientRecord>('SELECT id, name FROM clients ORDER BY name')
+  return result.rows
+}
+
+export async function createClient(client: PoolClient, input: { name: string }): Promise<ClientRecord> {
+  const name = clientNameOf(input.name)
+  const id = randomUUID()
+  await client.query('INSERT INTO clients (id, name) VALUES ($1, $2)', [id, name])
+  return { id, name }
+}
+
+export async function updateClient(client: PoolClient, clientId: string, input: { name: string }): Promise<ClientRecord> {
+  const name = clientNameOf(input.name)
+  const updated = await client.query('UPDATE clients SET name = $1 WHERE id = $2', [name, clientId])
+  if (!updated.rowCount) throw notFound('Cliente não encontrado.')
+  return { id: clientId, name }
+}
+
+export async function deleteClient(client: PoolClient, clientId: string): Promise<void> {
+  const deleted = await client.query('DELETE FROM clients WHERE id = $1', [clientId])
+  if (!deleted.rowCount) throw notFound('Cliente não encontrado.')
+}
+
+function supplierNameOf(value: string): string {
+  const name = value.trim()
+  if (!name) throw badRequest('Informe o nome.')
+  if (name.length > 120) throw badRequest('O nome do fornecedor pode ter no máximo 120 caracteres.')
+  return name
+}
+
+export async function listSuppliers(db: Db): Promise<SupplierRecord[]> {
+  const result = await db.query<SupplierRecord>('SELECT id, name FROM suppliers ORDER BY name')
+  return result.rows
+}
+
+export async function createSupplier(client: PoolClient, input: { name: string }): Promise<SupplierRecord> {
+  const name = supplierNameOf(input.name)
+  const id = randomUUID()
+  await client.query('INSERT INTO suppliers (id, name) VALUES ($1, $2)', [id, name])
+  return { id, name }
+}
+
+export async function updateSupplier(client: PoolClient, supplierId: string, input: { name: string }): Promise<SupplierRecord> {
+  const name = supplierNameOf(input.name)
+  const updated = await client.query('UPDATE suppliers SET name = $1 WHERE id = $2', [name, supplierId])
+  if (!updated.rowCount) throw notFound('Fornecedor não encontrado.')
+  return { id: supplierId, name }
+}
+
+export async function deleteSupplier(client: PoolClient, supplierId: string): Promise<void> {
+  const found = await client.query('SELECT id FROM suppliers WHERE id = $1', [supplierId])
+  if (!found.rowCount) throw notFound('Fornecedor não encontrado.')
+  const onProject = await client.query('SELECT 1 FROM projects WHERE supplier_id = $1 LIMIT 1', [supplierId])
+  const onTask = await client.query('SELECT 1 FROM subtasks WHERE supplier_id = $1 LIMIT 1', [supplierId])
+  if (onProject.rowCount && onTask.rowCount) {
+    throw conflict('Este fornecedor está em um projeto e alocado em uma tarefa e não pode ser excluído.')
+  }
+  if (onProject.rowCount) throw conflict('Este fornecedor está em um projeto e não pode ser excluído.')
+  if (onTask.rowCount) throw conflict('Este fornecedor está alocado em uma tarefa e não pode ser excluído.')
+  await client.query('DELETE FROM suppliers WHERE id = $1', [supplierId])
 }
 
 export async function listUsers(db: Db): Promise<PublicUser[]> {
@@ -1243,7 +1538,7 @@ export async function updateSubtask(
     done?: boolean
     startDate?: string | null
     predecessorId?: string | null
-    allocation?: { userId: string; startDate: string; durationDays: number }
+    allocation?: { userId?: string; supplierId?: string; startDate: string; durationDays: number }
   },
   actor: { id: string; role: Role },
   today: string,
@@ -1262,20 +1557,21 @@ export async function updateSubtask(
     ) {
       throw forbidden('O operador só pode marcar a tarefa como feita.')
     }
-    if (subtask.assignee?.id !== actor.id) throw notFound('Tarefa não encontrada.')
+    if (subtask.assignee?.kind !== 'user' || subtask.assignee.id !== actor.id) throw notFound('Tarefa não encontrada.')
   }
   const stored = await client.query<{
     name: string
     duration_days: number
     done: boolean
     assignee_id: string | null
+    supplier_id: string | null
     allocation_start: string | null
     allocation_days: number | null
     predecessor_id: string | null
     manual_start_date: string | null
     start_date: string | null
   }>(
-    `SELECT name, duration_days, done, assignee_id, allocation_start, allocation_days,
+    `SELECT name, duration_days, done, assignee_id, supplier_id, allocation_start, allocation_days,
             predecessor_id, manual_start_date, start_date
      FROM subtasks
      WHERE id = $1 AND stage_id = $2
@@ -1297,30 +1593,44 @@ export async function updateSubtask(
     else if (clearingPredecessor) manualStart = current.start_date
   }
   const previousAssignee = current.assignee_id
+  const previousSupplier = current.supplier_id
   let nextDuration = patch.durationDays ?? Number(current.duration_days)
   let assigneeId = current.assignee_id
+  let supplierId = current.supplier_id
   let allocationStart = current.allocation_start
   let allocationDays = current.allocation_days === null ? null : Number(current.allocation_days)
   if (patch.allocation) {
-    await assertActiveOperator(client, patch.allocation.userId)
-    assigneeId = patch.allocation.userId
+    const chosenUser = patch.allocation.userId
+    const chosenSupplier = patch.allocation.supplierId
+    if ((chosenUser ? 1 : 0) + (chosenSupplier ? 1 : 0) !== 1) throw badRequest('Escolha um profissional.')
+    if (chosenUser) {
+      await assertActiveOperator(client, chosenUser)
+      assigneeId = chosenUser
+      supplierId = null
+    } else if (chosenSupplier) {
+      const found = await client.query('SELECT id FROM suppliers WHERE id = $1', [chosenSupplier])
+      if (!found.rowCount) throw badRequest('Escolha um fornecedor do catálogo.')
+      assigneeId = null
+      supplierId = chosenSupplier
+    }
     allocationStart = patch.allocation.startDate
     allocationDays = patch.allocation.durationDays
     if (nextDuration <= 0) nextDuration = patch.allocation.durationDays
-  } else if (clearingPredecessor && assigneeId && manualStart) {
+  } else if (clearingPredecessor && (assigneeId || supplierId) && manualStart) {
     allocationStart = manualStart
   }
   await client.query(
     `UPDATE subtasks
      SET name = $1, duration_days = $2, done = $3,
-         assignee_id = $4, allocation_start = $5, allocation_days = $6,
-         predecessor_id = $7, manual_start_date = $8
-     WHERE id = $9 AND stage_id = $10`,
+         assignee_id = $4, supplier_id = $5, allocation_start = $6, allocation_days = $7,
+         predecessor_id = $8, manual_start_date = $9
+     WHERE id = $10 AND stage_id = $11`,
     [
       patch.name ?? current.name,
       nextDuration,
       patch.done ?? current.done,
       assigneeId,
+      supplierId,
       allocationStart,
       allocationDays,
       nextPredecessor,
@@ -1332,7 +1642,8 @@ export async function updateSubtask(
   if (previousAssignee && previousAssignee !== assigneeId) {
     await releaseOperator(client, stageId, previousAssignee)
   }
-  if (patch.done !== undefined || previousAssignee !== assigneeId) {
+  const assigneeChanged = previousAssignee !== assigneeId || previousSupplier !== supplierId
+  if (patch.done !== undefined || assigneeChanged) {
     await sweep(client, projectId, today)
   }
   await rescheduleProject(client, projectId, stageId)
@@ -1350,10 +1661,8 @@ export async function deleteSubtask(
   const task = project.stages.find((stage) => stage.id === stageId)?.subtasks.find((item) => item.id === subtaskId)
   if (!task) throw notFound('Tarefa não encontrada.')
   await client.query('DELETE FROM subtasks WHERE id = $1 AND stage_id = $2', [subtaskId, stageId])
-  if (task.assignee) {
-    await releaseOperator(client, stageId, task.assignee.id)
-    await sweep(client, projectId, today)
-  }
+  if (task.assignee?.kind === 'user') await releaseOperator(client, stageId, task.assignee.id)
+  if (task.assignee) await sweep(client, projectId, today)
   const remaining = await client.query<{ id: string }>(
     'SELECT id FROM subtasks WHERE stage_id = $1 ORDER BY position',
     [stageId],

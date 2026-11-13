@@ -1,18 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Modal, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { ApiError, api } from '../api'
 import { colorLabel, formatDate, roleLabel } from '../format'
 import { go } from '../nav'
 import { useSession } from '../session'
-import type { ProjectDetail, SessionUser, StageColor, StageDetail, Subtask, WorkCalendar } from '../types'
-import { Banner, Button, Confirm, DateField, Field, Loading, Muted, Screen, Title, TrashButton, dotClass } from '../ui'
+import type { ClientRecord, ProjectDetail, StageColor, StageDetail, Subtask, SupplierRecord, WorkCalendar } from '../types'
+import { ScopeEditor } from './ScopeEditor'
+import { Banner, Button, Card, Confirm, DateField, Field, Loading, Muted, Screen, Title, TrashButton, dotClass } from '../ui'
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
+
+type ProfessionalKind = 'user' | 'supplier'
+
+type ProfessionalOption = {
+  id: string
+  name: string
+  kind: ProfessionalKind
+}
 
 type DraftTask = {
   key: string
   name: string
   userId: string
+  kind: ProfessionalKind | null
   personName: string
   startDate: string
   duration: string
@@ -20,7 +30,8 @@ type DraftTask = {
 }
 
 type AllocationInput = {
-  userId: string
+  userId?: string
+  supplierId?: string
   startDate: string
   durationDays: number
 }
@@ -33,6 +44,24 @@ function defaultStageId(stages: readonly StageDetail[]): string | null {
   const qualifying = stages.filter((stage) => qualifies(stage.color))
   if (qualifying.length > 0) return qualifying[qualifying.length - 1].id
   return stages[0]?.id ?? null
+}
+
+const SCOPE_PANEL = { kind: 'scope' } as const
+
+type PanelSelection = typeof SCOPE_PANEL | { kind: 'stage'; id: string }
+
+function defaultSelection(stages: readonly StageDetail[]): PanelSelection {
+  const id = defaultStageId(stages)
+  return id ? { kind: 'stage', id } : SCOPE_PANEL
+}
+
+function connectorStyle(index: number, count: number): { top: number; left: number | '50%'; right: number | '50%' } | null {
+  if (count < 2) return null
+  return {
+    top: 11,
+    left: index === 0 ? '50%' : 0,
+    right: index === count - 1 ? '50%' : 0,
+  }
 }
 
 function wholeDays(value: string): number | null {
@@ -115,25 +144,133 @@ function todayScrollOffset(days: readonly string[], today: string): number {
   return (days.length - 1) * GANTT_DAY_W
 }
 
-function profissionalLabel(name: string, assignee: { active: boolean; deleted: boolean } | null): string {
-  if (assignee?.deleted) return 'Usuário excluído'
+function profissionalLabel(name: string, assignee: { active: boolean; deleted: boolean; kind?: ProfessionalKind } | null): string {
+  if (assignee?.deleted) return assignee.kind === 'supplier' ? 'Fornecedor excluído' : 'Usuário excluído'
   if (!name) return ''
-  return `${name}${assignee && !assignee.active ? ' (inativo)' : ''}`
+  const inactive = assignee && assignee.kind !== 'supplier' && !assignee.active ? ' (inativo)' : ''
+  const suffix = assignee?.kind === 'supplier' ? ' (fornecedor)' : ''
+  return `${name}${inactive}${suffix}`
 }
 
-function allocationFrom(userId: string, startDate: string, duration: string): AllocationInput | null {
+function allocationFrom(id: string, kind: ProfessionalKind | null, startDate: string, duration: string): AllocationInput | null {
   const durationDays = wholeDays(duration)
-  if (!userId || !datePattern.test(startDate) || durationDays === null) return null
-  return { userId, startDate, durationDays }
+  if (!id || !kind || !datePattern.test(startDate) || durationDays === null) return null
+  if (kind === 'supplier') return { supplierId: id, startDate, durationDays }
+  return { userId: id, startDate, durationDays }
+}
+
+function allocationPersonId(allocation: AllocationInput): string {
+  return allocation.supplierId ?? allocation.userId ?? ''
+}
+
+function DescriptionField({
+  value,
+  onCommit,
+}: {
+  value: string
+  onCommit: (value: string) => Promise<boolean>
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  return (
+    <View className="gap-1.5">
+      <Text className="text-sm font-semibold text-ink">Descrição</Text>
+      <TextInput
+        value={draft}
+        onChangeText={setDraft}
+        onBlur={() => {
+          const next = draft.trim()
+          if (next === value) {
+            setDraft(value)
+            return
+          }
+          void onCommit(next).then((saved) => {
+            if (!saved) setDraft(value)
+          })
+        }}
+        multiline
+        numberOfLines={6}
+        textAlignVertical="top"
+        maxLength={4000}
+        placeholder="Descrição geral do projeto"
+        placeholderTextColor="#5E6A78"
+        className="min-h-32 rounded-xl border border-line bg-paper px-3 py-2.5 text-base text-ink"
+      />
+    </View>
+  )
+}
+
+function CatalogField({
+  label,
+  placeholder,
+  searchPlaceholder,
+  emptyLabel,
+  emptyMessage,
+  selectedId,
+  options,
+  onCommit,
+}: {
+  label: string
+  placeholder: string
+  searchPlaceholder: string
+  emptyLabel: string
+  emptyMessage: string
+  selectedId: string | null
+  options: readonly { id: string; name: string }[]
+  onCommit: (id: string | null) => Promise<boolean>
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const selected = options.find((option) => option.id === selectedId)
+  const needle = query.trim().toLocaleLowerCase('pt-BR')
+  const filtered = options.filter((option) => option.name.toLocaleLowerCase('pt-BR').includes(needle))
+
+  function choose(next: string | null): void {
+    setOpen(false)
+    setQuery('')
+    if (next === selectedId) return
+    void onCommit(next)
+  }
+
+  return (
+    <View className="gap-1.5">
+      <Text className="text-sm font-semibold text-ink">{label}</Text>
+      <Pressable onPress={() => setOpen((current) => !current)} className="rounded-xl border border-line bg-paper px-3 py-2.5">
+        <Text className={selected ? 'text-base text-ink' : 'text-base text-muted'}>{selected?.name || placeholder}</Text>
+      </Pressable>
+      {open ? (
+        <View className="gap-2 rounded-xl border border-line bg-canvas p-2">
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={searchPlaceholder}
+            placeholderTextColor="#5E6A78"
+            autoCapitalize="none"
+            className="rounded-lg border border-line bg-paper px-3 py-2 text-ink"
+          />
+          <Pressable onPress={() => choose(null)} className="rounded-lg px-2 py-2">
+            <Text className="text-muted">{emptyLabel}</Text>
+          </Pressable>
+          {filtered.map((option) => (
+            <Pressable key={option.id} onPress={() => choose(option.id)} className="rounded-lg px-2 py-2">
+              <Text className={option.id === selectedId ? 'font-bold text-brand' : 'text-ink'}>{option.name}</Text>
+            </Pressable>
+          ))}
+          {filtered.length === 0 ? <Muted>{emptyMessage}</Muted> : null}
+        </View>
+      ) : null}
+    </View>
+  )
 }
 
 export function ProjectDetailScreen({ id }: { id: string }) {
   const { user } = useSession()
   const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<PanelSelection | null>(null)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
-  const [operators, setOperators] = useState<SessionUser[]>([])
+  const [team, setTeam] = useState<ProfessionalOption[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierRecord[]>([])
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [confirm, setConfirm] = useState<{
@@ -148,11 +285,18 @@ export function ProjectDetailScreen({ id }: { id: string }) {
   const [archiveError, setArchiveError] = useState('')
   const [archivePending, setArchivePending] = useState(false)
   const [calendar, setCalendar] = useState<WorkCalendar>(weekendCalendar)
+  const [clients, setClients] = useState<ClientRecord[]>([])
+  const professionals = [...team, ...suppliers.map((supplier) => ({ id: supplier.id, name: supplier.name, kind: 'supplier' as const }))]
+  const { width } = useWindowDimensions()
   const runSeq = useRef(0)
 
   function adopt(next: ProjectDetail): void {
     setProject(next)
-    setSelectedId((current) => (current && next.stages.some((stage) => stage.id === current) ? current : defaultStageId(next.stages)))
+    setSelection((current) => {
+      if (current?.kind === 'scope') return current
+      if (current?.kind === 'stage' && next.stages.some((stage) => stage.id === current.id)) return current
+      return defaultSelection(next.stages)
+    })
   }
 
   useEffect(() => {
@@ -164,8 +308,10 @@ export function ProjectDetailScreen({ id }: { id: string }) {
   useEffect(() => {
     if (user?.role !== 'admin') return
     api.users()
-      .then((result) => setOperators(result.users.filter((person) => person.role === 'operator' && person.active)))
-      .catch(() => setOperators([]))
+      .then((result) => setTeam(result.users
+        .filter((person) => person.role === 'operator' && person.active)
+        .map((person) => ({ id: person.id, name: person.name, kind: 'user' as const }))))
+      .catch(() => setTeam([]))
   }, [user?.role])
 
   useEffect(() => {
@@ -173,6 +319,16 @@ export function ProjectDetailScreen({ id }: { id: string }) {
       .then((result) => setCalendar(result.calendar))
       .catch(() => setCalendar(weekendCalendar))
   }, [])
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return
+    api.clients()
+      .then((result) => setClients(result.clients))
+      .catch(() => setClients([]))
+    api.suppliers()
+      .then((result) => setSuppliers(result.suppliers))
+      .catch(() => setSuppliers([]))
+  }, [user?.role])
 
   async function run(action: () => Promise<{ project: ProjectDetail } | void>): Promise<ProjectDetail | null> {
     const seq = ++runSeq.current
@@ -207,11 +363,30 @@ export function ProjectDetailScreen({ id }: { id: string }) {
   }
 
   const admin = user?.role === 'admin'
-  const selected = project.stages.find((stage) => stage.id === selectedId) ?? project.stages[0]
+  const panel = selection ?? defaultSelection(project.stages)
+  const scopeSelected = panel.kind === 'scope'
+  const selected = panel.kind === 'stage' ? project.stages.find((stage) => stage.id === panel.id) : undefined
+  const stopCount = project.stages.length + 1
+  const stackedScope = Platform.OS !== 'web' || width < 800
 
   async function saveName(): Promise<void> {
     const next = await run(() => api.updateProject(project!.id, { name: nameDraft }))
     if (next) setEditingName(false)
+  }
+
+  async function saveDescription(description: string): Promise<boolean> {
+    const next = await run(() => api.updateProject(project!.id, { description }))
+    return Boolean(next)
+  }
+
+  async function saveClient(clientId: string | null): Promise<boolean> {
+    const next = await run(() => api.updateProject(project!.id, { clientId }))
+    return Boolean(next)
+  }
+
+  async function saveSupplier(supplierId: string | null): Promise<boolean> {
+    const next = await run(() => api.updateProject(project!.id, { supplierId }))
+    return Boolean(next)
   }
 
   async function submitArchive(): Promise<void> {
@@ -269,21 +444,30 @@ export function ProjectDetailScreen({ id }: { id: string }) {
       {error ? <Banner message={error} /> : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View className="flex-row items-start py-3">
+          <Pressable
+            accessibilityLabel="Escopo do projeto"
+            accessibilityState={{ selected: scopeSelected }}
+            onPress={() => setSelection(SCOPE_PANEL)}
+            className="w-36 items-center px-1"
+          >
+            <View className="h-6 w-full items-center justify-center">
+              {stopCount > 1 ? <View className="absolute h-0.5 bg-muted" style={connectorStyle(0, stopCount) ?? undefined} /> : null}
+              <View className={`z-10 rounded-full border-2 border-ink ${scopeSelected ? 'h-5 w-5 bg-ink' : 'h-4 w-4 bg-canvas'}`} />
+            </View>
+            <Text className={`mt-2 text-center text-sm ${scopeSelected ? 'font-bold text-brand' : 'text-ink'}`}>Escopo do projeto</Text>
+          </Pressable>
           {project.stages.map((stage, index) => {
             const active = stage.id === selected?.id
-            const last = index === project.stages.length - 1
+            const line = connectorStyle(index + 1, stopCount)
             return (
               <Pressable
                 key={stage.id}
                 accessibilityLabel={`${stage.name}: ${colorLabel(stage.color)}`}
-                onPress={() => setSelectedId(stage.id)}
+                onPress={() => setSelection({ kind: 'stage', id: stage.id })}
                 className="w-36 items-center px-1"
               >
                 <View className="h-6 w-full items-center justify-center">
-                  <View
-                    className="absolute h-0.5 bg-muted"
-                    style={{ top: 11, left: index === 0 ? '50%' : 0, right: last ? '50%' : 0 }}
-                  />
+                  {line ? <View className="absolute h-0.5 bg-muted" style={line} /> : null}
                   <View className={`z-10 rounded-full border-2 border-canvas ${dotClass[stage.color]} ${active ? 'h-5 w-5' : 'h-4 w-4'}`} />
                 </View>
                 <Text className={`mt-2 text-center text-sm ${active ? 'font-bold text-brand' : 'text-ink'}`}>{stage.name}</Text>
@@ -294,29 +478,86 @@ export function ProjectDetailScreen({ id }: { id: string }) {
           })}
         </View>
       </ScrollView>
-      <GanttChart stages={project.stages} selectedStageId={selected?.id ?? null} calendar={calendar} />
-      {selected ? (
+      {scopeSelected ? null : (
+        <GanttChart stages={project.stages} selectedStageId={selected?.id ?? null} calendar={calendar} />
+      )}
+      {scopeSelected ? (
+        <View className="gap-4">
+          <View className={stackedScope ? 'gap-4' : 'flex-row items-start gap-4'}>
+            <View className={stackedScope ? 'z-20' : 'z-20 min-w-0 flex-1'}>
+              {admin && !project.archived ? (
+                <Card>
+                  <DescriptionField value={project.description} onCommit={saveDescription} />
+                  <CatalogField
+                    label="Cliente"
+                    placeholder="Escolher cliente"
+                    searchPlaceholder="Buscar cliente"
+                    emptyLabel="Sem cliente"
+                    emptyMessage="Nenhum cliente encontrado."
+                    selectedId={project.clientId}
+                    options={clients}
+                    onCommit={saveClient}
+                  />
+                  <CatalogField
+                    label="Fornecedor"
+                    placeholder="Escolher fornecedor"
+                    searchPlaceholder="Buscar fornecedor"
+                    emptyLabel="Sem fornecedor"
+                    emptyMessage="Nenhum fornecedor encontrado."
+                    selectedId={project.supplierId}
+                    options={suppliers}
+                    onCommit={saveSupplier}
+                  />
+                </Card>
+              ) : (
+                <Card>
+                  <Text className="text-sm font-semibold text-ink">Descrição</Text>
+                  <Text className="text-base text-ink">{project.description || '—'}</Text>
+                  <Text className="text-sm font-semibold text-ink">Cliente</Text>
+                  <Text className="text-base text-ink">{project.clientName || '—'}</Text>
+                  <Text className="text-sm font-semibold text-ink">Fornecedor</Text>
+                  <Text className="text-base text-ink">{project.supplierName || '—'}</Text>
+                </Card>
+              )}
+            </View>
+            <View className={stackedScope ? '' : 'min-w-0 flex-1'}>
+              <ScopeEditor
+                scope={project.scope ?? []}
+                admin={admin && !project.archived}
+                onChange={(lines) => {
+                  const same = lines.length === project.scope.length
+                    && lines.every((line, index) => line.serviceId === project.scope[index]?.serviceId && line.quantity === project.scope[index]?.quantity && line.allocationDays === project.scope[index]?.allocationDays)
+                  if (same) return
+                  void run(() => api.updateProject(project.id, { scope: lines }))
+                }}
+              />
+            </View>
+          </View>
+          {admin && !project.archived ? (
+            <View className="flex-row justify-end">
+              <Button
+                label="Arquivar projeto"
+                tone="danger"
+                onPress={() => {
+                  setArchivePassword('')
+                  setArchiveError('')
+                  setArchiveOpen(true)
+                }}
+              />
+            </View>
+          ) : null}
+        </View>
+      ) : selected ? (
         <TaskTable
           projectId={project.id}
           stage={selected}
           stages={project.stages}
           admin={admin}
           userId={user?.id ?? null}
-          people={operators}
+          people={professionals}
           pending={pending}
           onRun={run}
           onConfirm={setConfirm}
-        />
-      ) : null}
-      {admin ? (
-        <Button
-          label="Arquivar projeto"
-          tone="danger"
-          onPress={() => {
-            setArchivePassword('')
-            setArchiveError('')
-            setArchiveOpen(true)
-          }}
         />
       ) : null}
       {user ? <Muted>Você está como {roleLabel(user.role)}.</Muted> : null}
@@ -658,7 +899,7 @@ function TaskTable({
   stages: StageDetail[]
   admin: boolean
   userId: string | null
-  people: SessionUser[]
+  people: ProfessionalOption[]
   pending: boolean
   onRun: (action: () => Promise<{ project: ProjectDetail } | void>) => Promise<ProjectDetail | null>
   onConfirm: (value: {
@@ -682,7 +923,7 @@ function TaskTable({
       durationDays: allocation.durationDays,
       ...(task.predecessorId ? {} : { startDate: allocation.startDate }),
     })
-    const already = stage.operators.some((operator) => operator.id === allocation.userId)
+    const already = stage.operators.some((operator) => operator.id === allocationPersonId(allocation))
     if (stage.color === 'green' && !already) {
       onConfirm({
         title: 'Reabrir etapa',
@@ -699,7 +940,7 @@ function TaskTable({
     const name = draft.name.trim()
     if (!name || savingDraft.current.has(draft.key)) return
     savingDraft.current.add(draft.key)
-    const allocation = allocationFrom(draft.userId, draft.startDate, draft.duration)
+    const allocation = allocationFrom(draft.userId, draft.kind, draft.startDate, draft.duration)
     const durationDays = wholeDays(draft.duration)
     const known = new Set(stage.subtasks.map((task) => task.id))
     const create = () => api.createSubtask(projectId, stage.id, { name, ...(durationDays ? { durationDays } : {}) })
@@ -738,7 +979,7 @@ function TaskTable({
               key={task.id}
               task={task}
               admin={admin}
-              canToggle={admin || task.assignee?.id === userId}
+              canToggle={admin || (task.assignee?.kind === 'user' && task.assignee.id === userId)}
               people={people}
               pending={pending}
               onToggle={() => void onRun(() => api.updateSubtask(projectId, stage.id, task.id, { done: !task.done }))}
@@ -773,6 +1014,7 @@ function TaskTable({
             key: `draft-${Date.now()}`,
             name: '',
             userId: '',
+            kind: null,
             personName: '',
             startDate: '',
             duration: '',
@@ -801,7 +1043,7 @@ function TaskRow({
   task: Subtask
   admin: boolean
   canToggle: boolean
-  people: SessionUser[]
+  people: ProfessionalOption[]
   pending: boolean
   options: PredecessorOption[]
   onToggle: () => void
@@ -813,6 +1055,7 @@ function TaskRow({
 }) {
   const [name, setName] = useState(task.name)
   const [userId, setUserId] = useState(task.assignee?.id ?? '')
+  const [kind, setKind] = useState<ProfessionalKind | null>(task.assignee?.kind ?? null)
   const [personName, setPersonName] = useState(task.assignee?.name ?? '')
   const [startDate, setStartDate] = useState(task.assignee?.startDate ?? '')
   const [duration, setDuration] = useState(tempoOf(task))
@@ -821,29 +1064,42 @@ function TaskRow({
   useEffect(() => {
     setName(task.name)
     setUserId(task.assignee?.id ?? '')
+    setKind(task.assignee?.kind ?? null)
     setPersonName(task.assignee?.name ?? '')
     setStartDate(task.predecessorId ? (task.startDate ?? '') : (task.assignee?.startDate ?? task.startDate ?? ''))
     setDuration(tempoOf(task))
     setOpen(false)
-  }, [task.id, task.name, task.done, task.predecessorId, task.startDate, task.endDate, task.durationDays, task.assignee?.id, task.assignee?.name, task.assignee?.startDate, task.assignee?.durationDays])
+  }, [task.id, task.name, task.done, task.predecessorId, task.startDate, task.endDate, task.durationDays, task.assignee?.id, task.assignee?.kind, task.assignee?.name, task.assignee?.startDate, task.assignee?.durationDays])
 
-  function commitAllocation(next: { userId?: string; personName?: string; startDate?: string; duration?: string }): void {
+  function commitAllocation(next: { userId?: string; kind?: ProfessionalKind | null; personName?: string; startDate?: string; duration?: string }): void {
     const merged = {
       userId: next.userId ?? userId,
+      kind: next.kind === undefined ? kind : next.kind,
       personName: next.personName ?? personName,
       startDate: task.predecessorId ? (task.startDate ?? '') : (next.startDate ?? startDate),
       duration: next.duration ?? duration,
     }
-    const allocation = allocationFrom(merged.userId, merged.startDate, merged.duration)
+    const allocation = allocationFrom(merged.userId, merged.kind, merged.startDate, merged.duration)
     if (!allocation) return
+    const samePerson = task.assignee?.kind === 'supplier'
+      ? task.assignee.id === allocation.supplierId
+      : task.assignee?.kind === 'user' && task.assignee.id === allocation.userId
     if (
-      task.assignee
-      && task.assignee.id === allocation.userId
+      samePerson
+      && task.assignee
       && task.assignee.startDate === allocation.startDate
       && task.assignee.durationDays === allocation.durationDays
     ) return
     onAllocate(allocation, merged.personName)
   }
+
+  const labelAssignee = personName && kind
+    ? {
+        kind,
+        active: task.assignee?.kind === kind && task.assignee.id === userId ? task.assignee.active : true,
+        deleted: task.assignee?.kind === kind && task.assignee.id === userId ? task.assignee.deleted : false,
+      }
+    : null
 
   const shownStart = (task.predecessorId ? task.startDate : startDate) ?? ''
 
@@ -876,8 +1132,8 @@ function TaskRow({
         {admin ? (
           <>
             <Pressable onPress={() => setOpen((current) => !current)} className="rounded-lg border border-line px-3 py-2">
-              <Text className={profissionalLabel(personName, task.assignee) ? 'text-ink' : 'text-muted'}>
-                {profissionalLabel(personName, task.assignee) || 'Escolher profissional'}
+              <Text className={profissionalLabel(personName, labelAssignee) ? 'text-ink' : 'text-muted'}>
+                {profissionalLabel(personName, labelAssignee) || 'Escolher profissional'}
               </Text>
             </Pressable>
             {open ? (
@@ -885,9 +1141,10 @@ function TaskRow({
                 people={people}
                 onSelect={(person) => {
                   setUserId(person.id)
+                  setKind(person.kind)
                   setPersonName(person.name)
                   setOpen(false)
-                  commitAllocation({ userId: person.id, personName: person.name })
+                  commitAllocation({ userId: person.id, kind: person.kind, personName: person.name })
                 }}
               />
             ) : null}
@@ -923,7 +1180,7 @@ function TaskRow({
                 return
               }
               if (days === task.durationDays) return
-              const allocation = allocationFrom(userId, task.predecessorId ? (task.startDate ?? '') : startDate, String(days))
+              const allocation = allocationFrom(userId, kind, task.predecessorId ? (task.startDate ?? '') : startDate, String(days))
               if (allocation) {
                 commitAllocation({ duration: String(days) })
                 return
@@ -968,7 +1225,7 @@ function DraftRow({
   onRemove,
 }: {
   draft: DraftTask
-  people: SessionUser[]
+  people: ProfessionalOption[]
   onChange: (patch: Partial<DraftTask>) => void
   onBlurName: () => void
   onRemove: () => void
@@ -991,12 +1248,14 @@ function DraftRow({
       </View>
       <View className="relative z-20 w-44 pr-2">
         <Pressable onPress={() => onChange({ open: !draft.open })} className="rounded-lg border border-line px-3 py-2">
-          <Text className={draft.personName ? 'text-ink' : 'text-muted'}>{draft.personName || 'Escolher profissional'}</Text>
+          <Text className={draft.personName ? 'text-ink' : 'text-muted'}>
+            {draft.personName ? profissionalLabel(draft.personName, draft.kind ? { active: true, deleted: false, kind: draft.kind } : null) : 'Escolher profissional'}
+          </Text>
         </Pressable>
         {draft.open ? (
           <PersonMenu
             people={people}
-            onSelect={(person) => onChange({ userId: person.id, personName: person.name, open: false })}
+            onSelect={(person) => onChange({ userId: person.id, kind: person.kind, personName: person.name, open: false })}
           />
         ) : null}
       </View>
@@ -1091,11 +1350,12 @@ function PersonMenu({
   people,
   onSelect,
 }: {
-  people: SessionUser[]
-  onSelect: (person: SessionUser) => void
+  people: ProfessionalOption[]
+  onSelect: (person: ProfessionalOption) => void
 }) {
   const [query, setQuery] = useState('')
-  const filtered = people.filter((person) => person.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR')))
+  const needle = query.trim().toLocaleLowerCase('pt-BR')
+  const filtered = people.filter((person) => person.name.toLocaleLowerCase('pt-BR').includes(needle))
   return (
     <View className="mt-2 gap-2 rounded-xl border border-line bg-canvas p-2">
       <TextInput
@@ -1108,8 +1368,8 @@ function PersonMenu({
       />
       {filtered.length === 0 ? <Muted>Nenhum profissional disponível.</Muted> : null}
       {filtered.map((person) => (
-        <Pressable key={person.id} onPress={() => onSelect(person)} className="rounded-lg px-2 py-2">
-          <Text className="text-ink">{person.name}</Text>
+        <Pressable key={`${person.kind}:${person.id}`} onPress={() => onSelect(person)} className="rounded-lg px-2 py-2">
+          <Text className="text-ink">{person.kind === 'supplier' ? `${person.name} (fornecedor)` : person.name}</Text>
         </Pressable>
       ))}
     </View>

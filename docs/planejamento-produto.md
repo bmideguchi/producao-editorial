@@ -8,9 +8,9 @@ A equipe acompanha vários projetos ao mesmo tempo e lê, de relance, em que pon
 
 Há dois papéis. Cada pessoa tem um só.
 
-**Administrador.** Configura o sistema e vê todos os projetos ativos. Abre Operação (Projetos), Reports (Alocação) e Configuração (Templates, Equipe, Calendário, Projetos arquivados, Sair). Cria projetos, templates e pessoas. Edita o nome do projeto, as tarefas e as alocações. Marca Feita em qualquer tarefa. Arquiva projetos e apaga os que já estão arquivados. Vê o aviso "sem alocação" quando uma etapa ativada não tem ninguém.
+**Administrador.** Configura o sistema e vê todos os projetos ativos. Abre Operação (Projetos, Clientes, Fornecedores), Reports (Alocação) e Configuração (Templates, Equipe, Calendário, Projetos arquivados, Sair). Cria projetos, templates e pessoas. Edita o nome do projeto, as tarefas e as alocações. Marca Feita em qualquer tarefa. Arquiva projetos e apaga os que já estão arquivados. Vê o aviso "sem alocação" quando uma etapa ativada não tem ninguém.
 
-**Operador.** Executa o trabalho. O menu traz Projetos e Sair. A lista mostra só os projetos ativos em que essa pessoa é o profissional de ao menos uma tarefa. Na ficha, marca e desmarca Feita somente na tarefa em que está alocado. Não cria pessoas, templates, projetos nem tarefas. Não aloca colegas, não muda datas nem predecessoras, não arquiva e não ativa etapa. Templates, Equipe, Calendário, Alocação, Projetos arquivados e o endereço de novo projeto respondem "Sem acesso". Um projeto em que a pessoa não está alocada responde como inexistente.
+**Operador.** Executa o trabalho. O menu traz Projetos e Sair. A lista mostra só os projetos ativos em que essa pessoa é o profissional de ao menos uma tarefa. Na ficha, marca e desmarca Feita somente na tarefa em que está alocado. Não cria pessoas, templates, projetos nem tarefas. Não aloca colegas, não muda datas nem predecessoras, não altera o escopo, não arquiva e não ativa etapa. Clientes, Fornecedores, Templates, Equipe, Serviços, Calendário, Alocação, Projetos arquivados e o endereço de novo projeto respondem "Sem acesso". Um projeto em que a pessoa não está alocada responde como inexistente.
 
 O acesso é e-mail e senha. Credencial inválida não abre sessão e não revela se o e-mail existe. Pessoa inativa ou excluída não entra. A implantação cria um administrador inicial, para o primeiro acesso não depender de cadastro público.
 
@@ -18,9 +18,9 @@ O acesso é e-mail e senha. Credencial inválida não abre sessão e não revela
 
 A barra lateral se chama Produção editorial e mostra o nome de quem entrou.
 
-- Operação: Projetos. O administrador também vê o atalho Novo projeto.
+- Operação: Projetos. O administrador também vê Clientes, Fornecedores e o atalho Novo projeto.
 - Reports, só administrador: Alocação.
-- Configuração, só administrador: Templates, Equipe, Calendário, Projetos arquivados e Sair.
+- Configuração, só administrador: Templates, Equipe, Serviços, Calendário, Projetos arquivados e Sair.
 - O operador vê Projetos e Sair.
 
 ## Templates
@@ -37,7 +37,7 @@ O que continua sincronizando, inclusive em projeto arquivado:
 
 O projeto não ganha, perde nem reordena etapas por conta própria: a ordem acompanha o template.
 
-Excluir o template é recusado enquanto algum projeto aponta para ele. Arquivar tira o template da lista de criação e o deixa consultável em Arquivados.
+Excluir o template desliga os projetos dele e mantém as etapas e tarefas que eles já têm. Esses projetos continuam editáveis por conta própria. Arquivar tira o template da lista de criação e o deixa consultável em Arquivados.
 
 Na primeira subida, se ainda não houver template, entram dois exemplos só com nomes de etapa, sem tarefas: Livro (Pauta, redação, preparação de originais, revisão, diagramação, revisão de prova, capa, aprovação, fechamento) e Revista (Pauta da edição, reportagem, edição, revisão, diagramação, prova, fechamento). O administrador pode renomear, esvaziar ou criar outros.
 
@@ -47,7 +47,13 @@ O administrador cria o projeto com nome, data de início e um template ativo. A 
 
 Na ficha, o nome fica fixo. O administrador o altera pelo lápis, com salvar e cancelar. Cancelar devolve o nome anterior. O operador não edita o nome.
 
-Arquivar pede a senha do administrador outra vez. Senha errada não arquiva. Com a senha certa, o projeto sai das listas operacionais e o histórico permanece. Projetos arquivados ficam em Configuração → Projetos arquivados, com nome e data de início. Dali o administrador pode apagar de vez, depois de confirmar. A exclusão permanente não pede senha e remove etapas, tarefas e alocações. Um projeto ativo precisa ser arquivado antes de poder ser excluído.
+Arquivar, só no escopo do projeto, pede a senha do administrador outra vez. Senha errada não arquiva. Com a senha certa, o projeto sai das listas operacionais e o histórico permanece. Projetos arquivados ficam em Configuração → Projetos arquivados, com nome e data de início. Dali o administrador pode apagar de vez, depois de confirmar. A exclusão permanente não pede senha e remove etapas, tarefas e alocações. Um projeto ativo precisa ser arquivado antes de poder ser excluído.
+
+## Serviços e escopo
+
+Configuração → Serviços é o catálogo. Cada serviço é um card com nome e tempo de alocação padrão em dias. O tempo pode ser menor que um dia, com até duas casas decimais, como 0,5 ou 0,25. O card salva ao sair do campo. Excluir é recusado enquanto algum projeto ainda usa o serviço no escopo.
+
+Na criação do projeto e na ficha, o administrador define o escopo: quais serviços e quantos de cada. O mesmo serviço não se repete; a quantidade é um inteiro maior que zero. O operador vê o escopo e não o altera. O tempo padrão do serviço não cria tarefa nem muda a duração das tarefas. No escopo da ficha, a descrição geral, o cliente e o fornecedor ficam à esquerda e os serviços à direita. O cliente vem do catálogo em Operação → Clientes e o fornecedor do catálogo em Operação → Fornecedores; os dois podem ficar vazios. Cada linha do escopo guarda a própria duração, copiada do padrão do serviço ao entrar e editável só naquele projeto; o total exibido é essa duração vezes a quantidade.
 
 ## Bolinhas
 
@@ -85,9 +91,9 @@ O administrador vê os projetos ativos. O operador vê os seus, com o título Me
 
 O nome fica no topo. Abaixo, a linha do tempo horizontal: bolinha, nome da etapa e, sob o nome, o intervalo em dias úteis. Esse intervalo vai do início mais cedo ao fim mais tarde das tarefas da etapa, com os dois extremos inclusos, contando só dias úteis. Tarefas paralelas não se somam. Sem tarefa com data, o texto é "0 dias". A etapa aberta ao entrar é a última da linha que esteja azul, amarela ou verde. Se nenhuma se qualifica, abre a primeira.
 
-O cartão Gantt começa recolhido, com o chevron à direita do título. Aberto, agrupa as tarefas por etapa. Os grupos nascem recolhidos; só a etapa selecionada na linha do tempo começa expandida. As barras usam o farol da tarefa: verde se está Feita, cinza se ainda não começou, amarela se outra tarefa da mesma etapa já está Feita, azul no restante. A coluna de hoje é um vermelho claro e, ao abrir, o gráfico rola para deixá-la na esquerda. Colunas de fim de semana e feriado são cinza claro. Quando as duas pontas do vínculo estão visíveis, uma seta liga o fim da predecessora ao início da sucessora.
+O cartão Gantt não aparece no escopo. Na etapa, começa recolhido, com o chevron à direita do título. Aberto, agrupa as tarefas por etapa. Os grupos nascem recolhidos; só a etapa selecionada na linha do tempo começa expandida. As barras usam o farol da tarefa: verde se está Feita, cinza se ainda não começou, amarela se outra tarefa da mesma etapa já está Feita, azul no restante. A coluna de hoje é um vermelho claro e, ao abrir, o gráfico rola para deixá-la na esquerda. Colunas de fim de semana e feriado são cinza claro. Quando as duas pontas do vínculo estão visíveis, uma seta liga o fim da predecessora ao início da sucessora.
 
-A tabela Tarefas, da etapa selecionada, tem as colunas Feita, Tarefa, profissional, início da alocação, Tempo (dias), Fim, Predecessora e, para o administrador, a lixeira. A lixeira apaga a tarefa. Adicionar tarefa inclui uma linha; ela é gravada quando recebe nome. As datas usam um calendário. A mesma pessoa pode estar em várias tarefas da mesma etapa. O profissional escolhido é um operador ativo.
+A tabela Tarefas, da etapa selecionada, tem as colunas Feita, Tarefa, profissional, início da alocação, Tempo (dias), Fim, Predecessora e, para o administrador, a lixeira. A lixeira apaga a tarefa. Adicionar tarefa inclui uma linha; ela é gravada quando recebe nome. As datas usam um calendário. A mesma pessoa pode estar em várias tarefas da mesma etapa. O profissional escolhido é um operador ativo ou um fornecedor do catálogo.
 
 A predecessora é uma só, do tipo término-início, e precisa ser outra tarefa da mesma etapa ou da etapa imediatamente anterior. A API recusa auto-vínculo, ciclo, outro projeto, etapa posterior e etapa anterior à imediatamente anterior. Com predecessora, o início fica desabilitado e mostra o dia calculado. Limpar a predecessora habilita o início e mantém essa data.
 
@@ -111,7 +117,7 @@ Uma pessoa pode ser excluída mesmo alocada. A tarefa continua. O nome passa a "
 
 Reports → Alocação é uma tabela do mês, só para o administrador. As pessoas ficam nas linhas e os dias nas colunas. Debaixo do número do dia vai a letra da semana: D S T Q Q S S. A célula vazia de dia útil é cinza claro. A célula vazia de fim de semana ou feriado é cinza mais escuro. Um dia com 1 tarefa é verde, com 2 é amarelo e com 3 ou mais é vermelho. Passar o mouse lista projeto e tarefa. O intervalo de cada tarefa entra do início ao fim, inclusive. Dia ocupado usa a cor da contagem, mesmo em fim de semana ou feriado. O que é expediente vem do calendário da equipe.
 
-As linhas trazem os operadores ativos. Pessoa inativa ou excluída aparece no mês somente se ainda tiver tarefa nesse intervalo; a excluída entra como "Usuário excluído". A visão informa a carga e não impede a alocação.
+As linhas trazem os operadores ativos e, no mesmo quadro, o fornecedor que tiver dias nesse mês, pelo nome. Pessoa inativa ou excluída aparece no mês somente se ainda tiver tarefa nesse intervalo; a excluída entra como "Usuário excluído". A visão informa a carga e não impede a alocação.
 
 ## Arquitetura
 
@@ -134,7 +140,7 @@ Recursos em uso:
 - Templates: criar, listar, obter, editar, arquivar e excluir quando nenhum projeto os usa. As tarefas viajam com as etapas.
 - Projetos: criar a partir de um template, listar, obter, renomear, arquivar com a senha de novo, listar arquivados e excluir o que já está arquivado.
 - Etapas: a duração é o intervalo útil entre o início mais cedo e o fim mais tarde das tarefas. A lista devolve a cor, a contagem, o percentual e o rótulo geral.
-- Tarefas: criar, editar, excluir e marcar Feita. A alocação (pessoa, início e tempo) fica na tarefa. A predecessora é término-início, uma, na mesma etapa ou na imediatamente anterior.
+- Tarefas: criar, editar, excluir e marcar Feita. A alocação (operador ou fornecedor, início e tempo) fica na tarefa. A predecessora é término-início, uma, na mesma etapa ou na imediatamente anterior.
 - Calendário: ler e, o administrador, gravar dias sem expediente e feriados.
 - Relatório de alocação do mês, só administrador.
 

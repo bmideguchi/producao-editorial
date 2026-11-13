@@ -19,10 +19,11 @@ export const dotClass: Record<StageColor, string> = {
   green: 'bg-ok',
 }
 
-export function Screen({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+export function Screen({ children, wide = false, fill = false }: { children: ReactNode; wide?: boolean; fill?: boolean }) {
+  const width = fill ? 'max-w-none' : wide ? 'max-w-6xl' : 'max-w-3xl'
   return (
     <ScrollView className="flex-1 bg-canvas" contentContainerClassName="grow px-6 py-6" keyboardShouldPersistTaps="handled">
-      <View className={`w-full gap-4 self-center ${wide ? 'max-w-6xl' : 'max-w-3xl'}`}>{children}</View>
+      <View className={`w-full gap-4 self-center ${width}`}>{children}</View>
     </ScrollView>
   )
 }

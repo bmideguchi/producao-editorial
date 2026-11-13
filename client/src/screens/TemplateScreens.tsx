@@ -277,7 +277,7 @@ export function TemplateFormScreen({ id }: { id: string | null }) {
       {confirmDelete && id ? (
         <Confirm
           title="Excluir template"
-          message="Só é possível excluir se nenhum projeto tiver nascido dele."
+          message="Os projetos que usam este template continuam com as etapas e tarefas atuais e seguem editáveis."
           confirmLabel="Excluir"
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => {
