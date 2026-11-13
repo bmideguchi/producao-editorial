@@ -3,7 +3,7 @@ import { View } from 'react-native'
 import { ApiError, api } from '../api'
 import { go } from '../nav'
 import type { Template } from '../types'
-import { Banner, Button, Card, Confirm, Field, LinkText, Loading, Muted, Screen, SelectField, Title } from '../ui'
+import { Banner, Button, Card, Confirm, Empty, Field, FormColumn, LinkText, Loading, Muted, PageHeader, Screen, SectionLabel, SelectField } from '../ui'
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -62,14 +62,15 @@ export function TemplateListScreen() {
 
   return (
     <Screen>
-      <Title>Templates</Title>
-      <LinkText label="Novo template" onPress={() => go('/templates/novo')} />
+      <PageHeader title="Templates">
+        <Button label="Novo template" onPress={() => go('/templates/novo')} />
+      </PageHeader>
       {error ? <Banner message={error} /> : null}
-      {active.length === 0 ? <Muted>Nenhum template ativo.</Muted> : null}
+      {active.length === 0 ? <Empty>Nenhum template ativo.</Empty> : null}
       {active.map((template) => (
         <TemplateRow key={template.id} template={template} />
       ))}
-      {archived.length > 0 ? <Title>Arquivados</Title> : null}
+      {archived.length > 0 ? <SectionLabel>Arquivados</SectionLabel> : null}
       {archived.map((template) => (
         <TemplateRow key={template.id} template={template} />
       ))}
@@ -193,7 +194,8 @@ export function TemplateFormScreen({ id }: { id: string | null }) {
 
   return (
     <Screen>
-      <Title>{id ? 'Editar template' : 'Novo template'}</Title>
+      <PageHeader title={id ? 'Editar template' : 'Novo template'} />
+      <FormColumn>
       <Muted>
         Salvar atualiza as etapas dos projetos que usam este template. As tarefas de cada etapa são copiadas quando um projeto é criado; alterá-las depois não reescreve as tarefas que o projeto já tem.
       </Muted>
@@ -223,7 +225,7 @@ export function TemplateFormScreen({ id }: { id: string | null }) {
               })}
             />
           </View>
-          <Muted>Tarefas</Muted>
+          <SectionLabel>Tarefas</SectionLabel>
           {stage.tasks.map((task) => (
             <View key={task.key} className="gap-2 rounded-xl border border-line p-3">
               <Field
@@ -288,6 +290,7 @@ export function TemplateFormScreen({ id }: { id: string | null }) {
           }}
         />
       ) : null}
+      </FormColumn>
     </Screen>
   )
 }

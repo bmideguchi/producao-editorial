@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Text } from 'react-native'
+import { View } from 'react-native'
 import { ApiError } from '../api'
 import { useSession } from '../session'
-import { Banner, Button, Field, Screen, Title } from '../ui'
+import { Banner, Button, Field, Muted, Screen, Title } from '../ui'
 
 export function LoginScreen() {
   const { signIn } = useSession()
@@ -25,12 +25,14 @@ export function LoginScreen() {
 
   return (
     <Screen>
+      <View className="w-full max-w-md gap-4 self-center">
       <Title>Produção editorial</Title>
-      <Text className="text-base text-muted">Entre com o e-mail e a senha da equipe.</Text>
+      <Muted>Entre com o e-mail e a senha da equipe.</Muted>
       {error ? <Banner message={error} /> : null}
       <Field label="E-mail" value={email} onChangeText={setEmail} />
       <Field label="Senha" value={password} onChangeText={setPassword} secureTextEntry />
       <Button label={pending ? 'Entrando...' : 'Entrar'} onPress={() => void submit()} disabled={pending} />
+      </View>
     </Screen>
   )
 }

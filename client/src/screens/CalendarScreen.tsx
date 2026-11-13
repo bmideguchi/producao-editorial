@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { ApiError, api } from '../api'
 import type { WorkCalendar } from '../types'
-import { Banner, Button, DateField, Loading, Muted, Screen, Title, TrashButton } from '../ui'
+import { Banner, BodyText, Button, DateField, Empty, FormColumn, Loading, Muted, PageHeader, Panel, Screen, SectionLabel, TrashButton } from '../ui'
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 
@@ -85,12 +85,13 @@ export function CalendarScreen() {
 
   return (
     <Screen>
-      <Title>Calendário</Title>
+      <PageHeader title="Calendário" />
+      <FormColumn>
       <Muted>Um calendário para a equipe. A duração das tarefas conta só os dias de expediente.</Muted>
       {error ? <Banner message={error} /> : null}
       {calendar ? (
-        <View className="gap-4 rounded-2xl border border-line bg-paper p-4">
-          <Text className="text-sm font-semibold text-ink">Dias sem expediente</Text>
+        <Panel>
+          <SectionLabel>Dias sem expediente</SectionLabel>
           <View className="gap-2">
             {weekdays.map((day) => {
               const checked = calendar.closedWeekdays.includes(day.value)
@@ -99,16 +100,16 @@ export function CalendarScreen() {
                   <View className={`h-5 w-5 items-center justify-center rounded border ${checked ? 'border-brand bg-brand' : 'border-line bg-paper'}`}>
                     {checked ? <Text className="text-xs font-bold text-white">✓</Text> : null}
                   </View>
-                  <Text className="text-ink">{day.label}</Text>
+                  <BodyText>{day.label}</BodyText>
                 </Pressable>
               )
             })}
           </View>
-          <Text className="text-sm font-semibold text-ink">Feriados</Text>
-          {calendar.holidays.length === 0 ? <Muted>Nenhum feriado.</Muted> : null}
+          <SectionLabel>Feriados</SectionLabel>
+          {calendar.holidays.length === 0 ? <Empty compact>Nenhum feriado.</Empty> : null}
           {calendar.holidays.map((day) => (
             <View key={day} className="flex-row items-center justify-between">
-              <Text className="text-ink">{formatHoliday(day)}</Text>
+              <BodyText>{formatHoliday(day)}</BodyText>
               <TrashButton label={`Remover ${formatHoliday(day)}`} onPress={() => removeHoliday(day)} />
             </View>
           ))}
@@ -120,8 +121,9 @@ export function CalendarScreen() {
           </View>
           <Button label={pending ? 'Salvando...' : 'Salvar'} disabled={pending} onPress={() => void save()} />
           {saved ? <Muted>Calendário salvo.</Muted> : null}
-        </View>
+        </Panel>
       ) : null}
+      </FormColumn>
     </Screen>
   )
 }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native'
+import { Modal, Platform, Pressable, Text, View } from 'react-native'
 import { ApiError, api } from '../api'
 import type { SupplierRecord } from '../types'
-import { Banner, Button, Field, Loading, Muted, Screen, Title } from '../ui'
+import { Banner, BodyText, Button, Empty, Field, Loading, PageHeader, Screen, TableHeaderText, TableScroll, TableShell, surfaceStyle } from '../ui'
 
 type Editor = { mode: 'create' } | { mode: 'edit'; supplier: SupplierRecord }
 
@@ -24,18 +24,17 @@ export function SupplierListScreen() {
   if (!suppliers && !error) return <Loading />
 
   return (
-    <Screen wide>
-      <View className="flex-row items-center justify-between gap-4">
-        <Title>Fornecedores</Title>
+    <Screen>
+      <PageHeader title="Fornecedores">
         <Button label="Novo fornecedor" onPress={() => setEditor({ mode: 'create' })} />
-      </View>
+      </PageHeader>
       {error ? <Banner message={error} /> : null}
-      {suppliers?.length === 0 ? <Muted>Nenhum fornecedor no catálogo.</Muted> : null}
+      {suppliers?.length === 0 ? <Empty>Nenhum fornecedor no catálogo.</Empty> : null}
       {suppliers && suppliers.length > 0 ? (
-        <ScrollView horizontal>
-          <View className="min-w-[480px] overflow-hidden rounded-2xl border border-line bg-paper">
-            <View className="flex-row border-b border-line bg-canvas px-4 py-3">
-              <Text className="flex-1 text-sm font-semibold text-muted">Nome</Text>
+        <TableScroll>
+          <TableShell minWidth={480}>
+            <View className="w-full flex-row items-center border-b border-line bg-canvas px-4 py-2.5">
+              <TableHeaderText className="flex-1">Nome</TableHeaderText>
             </View>
             {suppliers.map((supplier) => (
               <Pressable
@@ -43,14 +42,14 @@ export function SupplierListScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={supplier.name}
                 onPress={() => setEditor({ mode: 'edit', supplier })}
-                className="border-b border-line px-4 py-3"
+                className="w-full border-b border-line px-4 py-3 hover:bg-canvas"
                 style={Platform.OS === 'web' ? { cursor: 'pointer' } : undefined}
               >
-                <Text className="text-base font-semibold text-ink">{supplier.name}</Text>
+                <BodyText className="font-medium">{supplier.name}</BodyText>
               </Pressable>
             ))}
-          </View>
-        </ScrollView>
+          </TableShell>
+        </TableScroll>
       ) : null}
       {editor ? (
         <SupplierModal
@@ -128,9 +127,9 @@ function SupplierModal({
 
   return (
     <Modal transparent animationType="fade" onRequestClose={() => { if (!pending) onClose() }}>
-      <View className="flex-1 items-center justify-center bg-ink/45 p-5">
-        <View className="w-full max-w-md gap-3 rounded-2xl bg-paper p-5">
-          <Text className="text-lg font-bold text-ink">{editing ? 'Editar fornecedor' : 'Novo fornecedor'}</Text>
+      <View className="flex-1 items-center justify-center bg-ink/50 p-5">
+        <View style={surfaceStyle} className="w-full max-w-md gap-4 rounded-xl border border-line bg-paper p-5">
+          <Text className="text-lg font-semibold tracking-tight text-ink">{editing ? 'Editar fornecedor' : 'Novo fornecedor'}</Text>
           <Field label="Nome" value={name} onChangeText={setName} />
           {formError ? <Banner message={formError} /> : null}
           <View className="flex-row items-center justify-between gap-2">

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { View } from 'react-native'
 import { ApiError, api } from '../api'
 import { formatDate } from '../format'
 import type { ArchivedProject } from '../types'
-import { Banner, Confirm, Loading, Muted, Screen, Title, TrashButton } from '../ui'
+import { Banner, BodyText, Confirm, Empty, Loading, PageHeader, Screen, TableHeaderText, TableScroll, TableShell, TrashButton } from '../ui'
 
 export function ArchivedProjectsScreen() {
   const [projects, setProjects] = useState<ArchivedProject[] | null>(null)
@@ -33,22 +33,22 @@ export function ArchivedProjectsScreen() {
   if (!projects && !error) return <Loading />
 
   return (
-    <Screen wide>
-      <Title>Projetos arquivados</Title>
+    <Screen>
+      <PageHeader title="Projetos arquivados" />
       {error ? <Banner message={error} /> : null}
-      {projects?.length === 0 ? <Muted>Nenhum projeto arquivado.</Muted> : null}
+      {projects?.length === 0 ? <Empty>Nenhum projeto arquivado.</Empty> : null}
       {projects && projects.length > 0 ? (
-        <ScrollView horizontal>
-          <View className="min-w-[640px] overflow-hidden rounded-2xl border border-line bg-paper">
-            <View className="flex-row border-b border-line bg-canvas px-4 py-3">
-              <Text className="flex-1 text-sm font-semibold text-muted">Nome</Text>
-              <Text className="w-36 text-sm font-semibold text-muted">Início</Text>
+        <TableScroll>
+          <TableShell minWidth={640}>
+            <View className="w-full flex-row items-center border-b border-line bg-canvas px-4 py-2.5">
+              <TableHeaderText className="flex-1">Nome</TableHeaderText>
+              <TableHeaderText className="w-36">Início</TableHeaderText>
               <View className="w-12" />
             </View>
             {projects.map((project) => (
-              <View key={project.id} className="flex-row items-center border-b border-line px-4 py-3">
-                <Text className="flex-1 pr-3 text-base font-semibold text-ink">{project.name}</Text>
-                <Text className="w-36 text-ink">{formatDate(project.startDate)}</Text>
+              <View key={project.id} className="w-full flex-row items-center border-b border-line px-4 py-3 hover:bg-canvas">
+                <BodyText className="flex-1 pr-3 font-medium">{project.name}</BodyText>
+                <BodyText className="w-36">{formatDate(project.startDate)}</BodyText>
                 <TrashButton
                   label={`Excluir ${project.name}`}
                   disabled={deleting}
@@ -56,8 +56,8 @@ export function ArchivedProjectsScreen() {
                 />
               </View>
             ))}
-          </View>
-        </ScrollView>
+          </TableShell>
+        </TableScroll>
       ) : null}
       {pendingDelete ? (
         <Confirm

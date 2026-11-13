@@ -5,7 +5,7 @@ import { todayIso } from '../format'
 import { go } from '../nav'
 import type { ScopeLine, Template } from '../types'
 import { ScopeEditor } from './ScopeEditor'
-import { Banner, Button, DateField, Field, Loading, Muted, Screen, Title } from '../ui'
+import { Banner, Button, DateField, Empty, Field, FieldLabel, FormColumn, Loading, Muted, PageHeader, Screen } from '../ui'
 
 export function NewProjectScreen() {
   const [templates, setTemplates] = useState<Template[] | null>(null)
@@ -49,20 +49,21 @@ export function NewProjectScreen() {
 
   return (
     <Screen>
-      <Title>Novo projeto</Title>
+      <PageHeader title="Novo projeto" />
+      <FormColumn>
       <Muted>Escolha um template ativo. As etapas e as tarefas do template nascem neste projeto. O escopo diz quais serviços, e quantos, serão realizados.</Muted>
       {error ? <Banner message={error} /> : null}
       <Field label="Nome" value={name} onChangeText={setName} />
       <View className="gap-1.5">
-        <Text className="text-sm font-semibold text-ink">Data de início</Text>
+        <FieldLabel>Data de início</FieldLabel>
         <DateField value={startDate} onChange={setStartDate} />
       </View>
       <View className="gap-2">
-        <Text className="font-semibold text-ink">Template</Text>
-        {templates?.length === 0 ? <Muted>Nenhum template ativo.</Muted> : null}
+        <FieldLabel>Template</FieldLabel>
+        {templates?.length === 0 ? <Empty compact>Nenhum template ativo.</Empty> : null}
         {templates?.map((template) => (
           <Pressable key={template.id} onPress={() => setTemplateId(template.id)}>
-            <Text className={template.id === templateId ? 'font-bold text-brand' : 'text-ink'}>
+            <Text className={template.id === templateId ? 'text-sm font-bold text-brand' : 'text-sm text-ink'}>
               {template.name} · {template.stages.length} etapas
             </Text>
           </Pressable>
@@ -76,6 +77,7 @@ export function NewProjectScreen() {
         quantity: line.quantity,
       })))} />
       <Button label={pending ? 'Criando...' : 'Criar projeto'} onPress={() => void submit()} disabled={pending || !templateId} />
+      </FormColumn>
     </Screen>
   )
 }

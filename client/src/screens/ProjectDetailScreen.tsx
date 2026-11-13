@@ -6,7 +6,8 @@ import { go } from '../nav'
 import { useSession } from '../session'
 import type { ClientRecord, ProjectDetail, StageColor, StageDetail, Subtask, SupplierRecord, WorkCalendar } from '../types'
 import { ScopeEditor } from './ScopeEditor'
-import { Banner, Button, Card, Confirm, DateField, Field, Loading, Muted, Screen, Title, TrashButton, dotClass } from '../ui'
+import { IconPencil } from '../icons'
+import { Banner, BodyText, Button, Card, Confirm, DateField, Empty, Field, FieldLabel, Loading, Muted, Panel, Screen, SectionLabel, TableHeaderText, Title, TrashButton, dotClass, mutedColor, surfaceStyle } from '../ui'
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 
@@ -174,7 +175,7 @@ function DescriptionField({
   useEffect(() => setDraft(value), [value])
   return (
     <View className="gap-1.5">
-      <Text className="text-sm font-semibold text-ink">Descrição</Text>
+      <FieldLabel>Descrição</FieldLabel>
       <TextInput
         value={draft}
         onChangeText={setDraft}
@@ -193,8 +194,8 @@ function DescriptionField({
         textAlignVertical="top"
         maxLength={4000}
         placeholder="Descrição geral do projeto"
-        placeholderTextColor="#5E6A78"
-        className="min-h-32 rounded-xl border border-line bg-paper px-3 py-2.5 text-base text-ink"
+        placeholderTextColor={mutedColor}
+        className="min-h-32 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm text-ink"
       />
     </View>
   )
@@ -234,9 +235,9 @@ function CatalogField({
 
   return (
     <View className="gap-1.5">
-      <Text className="text-sm font-semibold text-ink">{label}</Text>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable onPress={() => setOpen((current) => !current)} className="rounded-xl border border-line bg-paper px-3 py-2.5">
-        <Text className={selected ? 'text-base text-ink' : 'text-base text-muted'}>{selected?.name || placeholder}</Text>
+        <Text className={selected ? 'text-sm text-ink' : 'text-sm text-muted'}>{selected?.name || placeholder}</Text>
       </Pressable>
       {open ? (
         <View className="gap-2 rounded-xl border border-line bg-canvas p-2">
@@ -244,16 +245,16 @@ function CatalogField({
             value={query}
             onChangeText={setQuery}
             placeholder={searchPlaceholder}
-            placeholderTextColor="#5E6A78"
+            placeholderTextColor={mutedColor}
             autoCapitalize="none"
-            className="rounded-lg border border-line bg-paper px-3 py-2 text-ink"
+            className="rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink"
           />
           <Pressable onPress={() => choose(null)} className="rounded-lg px-2 py-2">
-            <Text className="text-muted">{emptyLabel}</Text>
+            <Text className="text-sm text-muted">{emptyLabel}</Text>
           </Pressable>
           {filtered.map((option) => (
             <Pressable key={option.id} onPress={() => choose(option.id)} className="rounded-lg px-2 py-2">
-              <Text className={option.id === selectedId ? 'font-bold text-brand' : 'text-ink'}>{option.name}</Text>
+              <Text className={option.id === selectedId ? 'text-sm font-bold text-brand' : 'text-sm text-ink'}>{option.name}</Text>
             </Pressable>
           ))}
           {filtered.length === 0 ? <Muted>{emptyMessage}</Muted> : null}
@@ -403,14 +404,15 @@ export function ProjectDetailScreen({ id }: { id: string }) {
   }
 
   return (
-    <Screen wide>
+    <Screen>
       {editingName ? (
         <View className="gap-3">
           <TextInput
             value={nameDraft}
             onChangeText={setNameDraft}
             autoCapitalize="none"
-            className="rounded-xl border border-line bg-paper px-3 py-2.5 text-2xl font-bold text-ink"
+            className="rounded-lg border border-line bg-paper px-3 py-2.5 font-display text-2xl font-bold tracking-tight text-ink"
+            style={Platform.OS === 'web' ? { fontFamily: 'Space Grotesk, Inter, "Segoe UI", sans-serif' } : undefined}
           />
           <View className="flex-row gap-2">
             <Button label={pending ? 'Salvando...' : 'Salvar'} disabled={pending} onPress={() => void saveName()} />
@@ -435,8 +437,9 @@ export function ProjectDetailScreen({ id }: { id: string }) {
                 setEditingName(true)
               }}
               className="h-9 w-9 items-center justify-center rounded-lg border border-line bg-paper"
+              style={surfaceStyle}
             >
-              <Text className="text-lg text-brand">✎</Text>
+              <IconPencil />
             </Pressable>
           ) : null}
         </View>
@@ -451,8 +454,8 @@ export function ProjectDetailScreen({ id }: { id: string }) {
             className="w-36 items-center px-1"
           >
             <View className="h-6 w-full items-center justify-center">
-              {stopCount > 1 ? <View className="absolute h-0.5 bg-muted" style={connectorStyle(0, stopCount) ?? undefined} /> : null}
-              <View className={`z-10 rounded-full border-2 border-ink ${scopeSelected ? 'h-5 w-5 bg-ink' : 'h-4 w-4 bg-canvas'}`} />
+              {stopCount > 1 ? <View className="absolute h-0.5 bg-wait" style={connectorStyle(0, stopCount) ?? undefined} /> : null}
+              <View className={`z-10 rounded-full border-2 border-ink ${scopeSelected ? 'h-5 w-5 bg-ink' : 'h-3.5 w-3.5 bg-paper'}`} />
             </View>
             <Text className={`mt-2 text-center text-sm ${scopeSelected ? 'font-bold text-brand' : 'text-ink'}`}>Escopo do projeto</Text>
           </Pressable>
@@ -467,8 +470,8 @@ export function ProjectDetailScreen({ id }: { id: string }) {
                 className="w-36 items-center px-1"
               >
                 <View className="h-6 w-full items-center justify-center">
-                  {line ? <View className="absolute h-0.5 bg-muted" style={line} /> : null}
-                  <View className={`z-10 rounded-full border-2 border-canvas ${dotClass[stage.color]} ${active ? 'h-5 w-5' : 'h-4 w-4'}`} />
+                  {line ? <View className="absolute h-0.5 bg-wait" style={line} /> : null}
+                  <View className={`z-10 rounded-full border-2 border-paper ${dotClass[stage.color]} ${active ? 'h-5 w-5' : 'h-3.5 w-3.5'}`} />
                 </View>
                 <Text className={`mt-2 text-center text-sm ${active ? 'font-bold text-brand' : 'text-ink'}`}>{stage.name}</Text>
                 <Text className="text-center text-xs text-muted">{durationLabel(stage.durationDays)}</Text>
@@ -511,12 +514,12 @@ export function ProjectDetailScreen({ id }: { id: string }) {
                 </Card>
               ) : (
                 <Card>
-                  <Text className="text-sm font-semibold text-ink">Descrição</Text>
-                  <Text className="text-base text-ink">{project.description || '—'}</Text>
-                  <Text className="text-sm font-semibold text-ink">Cliente</Text>
-                  <Text className="text-base text-ink">{project.clientName || '—'}</Text>
-                  <Text className="text-sm font-semibold text-ink">Fornecedor</Text>
-                  <Text className="text-base text-ink">{project.supplierName || '—'}</Text>
+                  <FieldLabel>Descrição</FieldLabel>
+                  <BodyText>{project.description || '—'}</BodyText>
+                  <FieldLabel>Cliente</FieldLabel>
+                  <BodyText>{project.clientName || '—'}</BodyText>
+                  <FieldLabel>Fornecedor</FieldLabel>
+                  <BodyText>{project.supplierName || '—'}</BodyText>
                 </Card>
               )}
             </View>
@@ -538,6 +541,7 @@ export function ProjectDetailScreen({ id }: { id: string }) {
               <Button
                 label="Arquivar projeto"
                 tone="danger"
+                size="sm"
                 onPress={() => {
                   setArchivePassword('')
                   setArchiveError('')
@@ -579,9 +583,9 @@ export function ProjectDetailScreen({ id }: { id: string }) {
       ) : null}
       {archiveOpen ? (
         <Modal transparent animationType="fade" onRequestClose={() => setArchiveOpen(false)}>
-          <View className="flex-1 items-center justify-center bg-ink/45 p-5">
-            <View className="w-full max-w-md gap-3 rounded-2xl bg-paper p-5">
-              <Text className="text-lg font-bold text-ink">Arquivar projeto</Text>
+          <View className="flex-1 items-center justify-center bg-ink/50 p-5">
+            <View style={surfaceStyle} className="w-full max-w-md gap-4 rounded-xl border border-line bg-paper p-5">
+              <Text className="text-lg font-semibold tracking-tight text-ink">Arquivar projeto</Text>
               <Muted>Digite sua senha para arquivar. O projeto sai das listas e o histórico permanece.</Muted>
               <Field label="Senha" value={archivePassword} onChangeText={setArchivePassword} secureTextEntry />
               {archiveError ? <Banner message={archiveError} /> : null}
@@ -720,21 +724,21 @@ function GanttChart({
   }, [scrollX, cardOpen])
 
   return (
-    <View className="gap-3 rounded-2xl border border-line bg-paper p-4">
+    <Panel>
       <Pressable
         accessibilityLabel="Gantt"
         accessibilityState={{ expanded: cardOpen }}
         onPress={() => setCardOpen((current) => !current)}
         className="flex-row items-center justify-between"
       >
-        <Text className="text-lg font-bold text-ink">Gantt</Text>
+        <SectionLabel>Gantt</SectionLabel>
         <Chevron open={cardOpen} />
       </Pressable>
       <View style={cardOpen ? undefined : { height: 0, overflow: 'hidden' }}>
         <View className="flex-row">
           <View style={{ width: GANTT_LABEL_W }}>
             <View style={{ height: GANTT_HEAD_H }} className="justify-end border-b border-line px-2 pb-1">
-              <Text className="text-xs font-semibold text-muted">Etapa / tarefa</Text>
+              <TableHeaderText>Etapa / tarefa</TableHeaderText>
             </View>
             {rows.map((row) => (
               <Pressable
@@ -756,13 +760,14 @@ function GanttChart({
           </View>
           {days.length === 0 ? (
             <View className="flex-1 justify-center px-3">
-              <Muted>Nenhuma tarefa com data.</Muted>
+              <Empty compact>Nenhuma tarefa com data.</Empty>
             </View>
           ) : (
             <ScrollView
               ref={scrollRef}
               horizontal
               showsHorizontalScrollIndicator
+              className="min-w-0 flex-1"
               contentOffset={{ x: scrollX, y: 0 }}
             >
               <View style={{ width: chartWidth, height: chartHeight }}>
@@ -835,7 +840,7 @@ function GanttChart({
           )}
         </View>
       </View>
-    </View>
+    </Panel>
   )
 }
 
@@ -955,23 +960,23 @@ function TaskTable({
   }
 
   return (
-    <View className="gap-3 rounded-2xl border border-line bg-paper p-4">
-      <Text className="text-lg font-bold text-ink">Tarefas</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View className="min-w-[1100px] overflow-visible">
-          <View className="flex-row items-center border-b border-line px-2 py-2">
-            <Text className="w-16 text-sm font-semibold text-muted">Feita</Text>
-            <Text className="w-44 text-sm font-semibold text-muted">Tarefa</Text>
-            <Text className="w-44 text-sm font-semibold text-muted">profissional</Text>
-            <Text className="w-44 text-sm font-semibold text-muted">início da alocação</Text>
-            <Text className="w-28 text-sm font-semibold text-muted">Tempo (dias)</Text>
-            <Text className="w-32 text-sm font-semibold text-muted">Fim</Text>
-            <Text className="w-44 text-sm font-semibold text-muted">Predecessora</Text>
+    <Panel>
+      <SectionLabel>Tarefas</SectionLabel>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="w-full max-w-full" contentContainerClassName="min-w-full grow">
+        <View className="w-full min-w-[1100px] overflow-visible">
+          <View className="w-full flex-row items-center border-b border-line px-2 py-2">
+            <TableHeaderText className="w-16">Feita</TableHeaderText>
+            <TableHeaderText className="min-w-44 flex-1">Tarefa</TableHeaderText>
+            <TableHeaderText className="w-44">profissional</TableHeaderText>
+            <TableHeaderText className="w-44">início da alocação</TableHeaderText>
+            <TableHeaderText className="w-28">Tempo (dias)</TableHeaderText>
+            <TableHeaderText className="w-32">Fim</TableHeaderText>
+            <TableHeaderText className="w-44">Predecessora</TableHeaderText>
             {admin ? <View className="w-12" /> : null}
           </View>
           {stage.subtasks.length === 0 && drafts.length === 0 ? (
             <View className="px-2 py-3">
-              <Muted>Nenhuma tarefa.</Muted>
+              <Empty compact>Nenhuma tarefa.</Empty>
             </View>
           ) : null}
           {stage.subtasks.map((task) => (
@@ -1022,7 +1027,7 @@ function TaskTable({
           }])}
         />
       ) : null}
-    </View>
+    </Panel>
   )
 }
 
@@ -1104,11 +1109,11 @@ function TaskRow({
   const shownStart = (task.predecessorId ? task.startDate : startDate) ?? ''
 
   return (
-    <View className="flex-row items-start border-b border-line px-2 py-3">
+    <View className="w-full flex-row items-start border-b border-line px-2 py-3 hover:bg-canvas">
       <View className="w-16 pt-2">
         <DoneBox checked={task.done} disabled={!canToggle || pending} onPress={onToggle} />
       </View>
-      <View className="w-44 pr-2">
+      <View className="min-w-44 flex-1 pr-2">
         {admin ? (
           <TextInput
             value={name}
@@ -1188,7 +1193,7 @@ function TaskRow({
               onDuration(days)
             }}
             placeholder="Dias"
-            placeholderTextColor="#5E6A78"
+            placeholderTextColor={mutedColor}
             autoCapitalize="none"
             className="rounded-lg border border-line px-3 py-2 text-ink"
           />
@@ -1231,17 +1236,17 @@ function DraftRow({
   onRemove: () => void
 }) {
   return (
-    <View className="flex-row items-start border-b border-line px-2 py-3">
+    <View className="w-full flex-row items-start border-b border-line px-2 py-3 hover:bg-canvas">
       <View className="w-16 pt-2">
         <DoneBox checked={false} disabled onPress={() => undefined} />
       </View>
-      <View className="w-44 pr-2">
+      <View className="min-w-44 flex-1 pr-2">
         <TextInput
           value={draft.name}
           onChangeText={(name) => onChange({ name })}
           onBlur={onBlurName}
           placeholder="Nome da tarefa"
-          placeholderTextColor="#5E6A78"
+          placeholderTextColor={mutedColor}
           autoCapitalize="none"
           className="rounded-lg border border-line px-3 py-2 text-ink"
         />
@@ -1267,7 +1272,7 @@ function DraftRow({
           value={draft.duration}
           onChangeText={(duration) => onChange({ duration })}
           placeholder="Dias"
-          placeholderTextColor="#5E6A78"
+          placeholderTextColor={mutedColor}
           autoCapitalize="none"
           className="rounded-lg border border-line px-3 py-2 text-ink"
         />
@@ -1362,7 +1367,7 @@ function PersonMenu({
         value={query}
         onChangeText={setQuery}
         placeholder="Buscar por nome"
-        placeholderTextColor="#5E6A78"
+        placeholderTextColor={mutedColor}
         autoCapitalize="none"
         className="rounded-lg border border-line bg-paper px-3 py-2 text-ink"
       />

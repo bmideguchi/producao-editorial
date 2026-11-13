@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { ApiError, api } from '../api'
 import { todayIso } from '../format'
 import type { AllocationEntry, AllocationReport } from '../types'
-import { Banner, Button, Loading, Screen, Title } from '../ui'
+import { Banner, BodyText, Button, Loading, PageHeader, Screen, SectionLabel, TableHeaderText, TableScroll, TableShell, ink, line, paper } from '../ui'
 
 function currentMonth(): string {
   return todayIso().slice(0, 7)
@@ -64,9 +64,9 @@ function TaskBalloon({ tip }: { tip: Tip }) {
     node.style.zIndex = '1000'
     node.style.width = 'max-content'
     node.style.maxWidth = '360px'
-    node.style.background = '#fffcf8'
-    node.style.color = '#1c2430'
-    node.style.border = '1px solid #e4d9cb'
+    node.style.background = paper
+    node.style.color = ink
+    node.style.border = `1px solid ${line}`
     node.style.borderRadius = '12px'
     node.style.padding = '10px 12px'
     node.style.boxShadow = '0 10px 28px rgba(28, 36, 48, 0.16)'
@@ -89,7 +89,7 @@ function Legend({ swatch, label }: { swatch: string; label: string }) {
   return (
     <View className="flex-row items-center gap-2">
       <View className={`h-4 w-4 rounded ${swatch}`} />
-      <Text className="text-sm text-ink">{label}</Text>
+      <BodyText>{label}</BodyText>
     </View>
   )
 }
@@ -154,11 +154,13 @@ export function AllocationScreen() {
   if (!visible && !error) return <Loading />
 
   return (
-    <Screen wide>
-      <Title>Alocação</Title>
+    <Screen>
+      <PageHeader title="Alocação" />
       <View className="flex-row flex-wrap items-center gap-2">
         <Button label="Mês anterior" tone="quiet" onPress={() => setMonth((current) => shiftMonth(current, -1))} />
-        <Text className="min-w-40 text-center text-lg font-semibold text-ink">{monthLabel(month)}</Text>
+        <View className="min-w-40 items-center">
+          <SectionLabel>{monthLabel(month)}</SectionLabel>
+        </View>
         <Button label="Próximo mês" tone="quiet" onPress={() => setMonth((current) => shiftMonth(current, 1))} />
       </View>
       <View className="flex-row flex-wrap gap-4">
@@ -171,10 +173,10 @@ export function AllocationScreen() {
       {error ? <Banner message={error} /> : null}
       {tip ? <TaskBalloon tip={tip} /> : null}
       {visible ? (
-        <ScrollView horizontal onScroll={() => setTip(null)} scrollEventThrottle={16}>
-          <View className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <TableScroll onScroll={() => setTip(null)}>
+          <TableShell>
             <View className="flex-row border-b border-line bg-canvas">
-              <Text className="w-44 shrink-0 justify-center px-3 py-2 text-sm font-semibold text-muted">Pessoa</Text>
+              <TableHeaderText className="w-44 shrink-0 px-3 py-2">Pessoa</TableHeaderText>
               {visible.days.map((day, index) => {
                 const closed = visible.closed?.[index] ?? false
                 const letter = weekdayLetter(day)
@@ -192,9 +194,9 @@ export function AllocationScreen() {
             </View>
             {visible.people.map((person) => (
               <View key={person.id} className="flex-row border-b border-line">
-                <Text className="w-44 shrink-0 px-3 py-2 text-sm font-semibold text-ink" numberOfLines={1}>
+                <BodyText numberOfLines={1} className="w-44 shrink-0 px-3 py-2 font-semibold">
                   {person.name}
-                </Text>
+                </BodyText>
                 {person.counts.map((count, index) => {
                   const day = visible.days[index]
                   const closed = visible.closed?.[index] ?? false
@@ -214,8 +216,8 @@ export function AllocationScreen() {
                 })}
               </View>
             ))}
-          </View>
-        </ScrollView>
+          </TableShell>
+        </TableScroll>
       ) : null}
     </Screen>
   )

@@ -1,9 +1,9 @@
-import { createElement, type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal, Platform, Pressable, Text, View } from 'react-native'
 import { ApiError, api } from '../api'
 import { formatAllocationDays, parseAllocationDays } from '../format'
 import type { ServiceRecord } from '../types'
-import { Banner, Button, Field, Loading, Muted, Screen, Title } from '../ui'
+import { Banner, Button, CardGrid, Empty, Field, GridCell, Loading, Muted, PageHeader, Screen, surfaceStyle } from '../ui'
 
 type Editor = { mode: 'create' } | { mode: 'edit'; service: ServiceRecord }
 
@@ -25,28 +25,30 @@ export function ServiceListScreen() {
   if (!services && !error) return <Loading />
 
   return (
-    <Screen fill>
-      <View className="flex-row items-center justify-between gap-4">
-        <Title>Serviços</Title>
+    <Screen>
+      <PageHeader title="Serviços">
         <Button label="Novo serviço" onPress={() => setEditor({ mode: 'create' })} />
-      </View>
+      </PageHeader>
       {error ? <Banner message={error} /> : null}
-      {services?.length === 0 ? <Muted>Nenhum serviço no catálogo.</Muted> : null}
-      <Catalog>
+      {services?.length === 0 ? <Empty>Nenhum serviço no catálogo.</Empty> : null}
+      <CardGrid>
         {services?.map((service) => (
-          <Pressable
-            key={service.id}
-            accessibilityRole="button"
-            accessibilityLabel={`${service.name}, ${formatAllocationDays(service.allocationDays)}`}
-            onPress={() => setEditor({ mode: 'edit', service })}
-            className="rounded-2xl border border-line bg-paper px-4 py-3"
-            style={Platform.OS === 'web' ? { cursor: 'pointer' } : undefined}
-          >
-            <Text className="text-base font-bold text-ink">{service.name}</Text>
-            <Text className="mt-1 text-sm text-muted">{formatAllocationDays(service.allocationDays)}</Text>
-          </Pressable>
+          <GridCell key={service.id}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${service.name}, ${formatAllocationDays(service.allocationDays)}`}
+              onPress={() => setEditor({ mode: 'edit', service })}
+              className="flex-1 rounded-xl border border-line bg-paper p-4"
+              style={Platform.OS === 'web' ? { cursor: 'pointer', width: '100%', flexGrow: 1, ...surfaceStyle } : undefined}
+            >
+              <Text className="text-sm font-semibold text-ink">{service.name}</Text>
+              <View className="mt-2">
+                <Muted>{formatAllocationDays(service.allocationDays)}</Muted>
+              </View>
+            </Pressable>
+          </GridCell>
         ))}
-      </Catalog>
+      </CardGrid>
       {editor ? (
         <ServiceModal
           key={editor.mode === 'edit' ? editor.service.id : 'new'}
@@ -71,20 +73,6 @@ export function ServiceListScreen() {
       ) : null}
     </Screen>
   )
-}
-
-function Catalog({ children }: { children: ReactNode }) {
-  if (Platform.OS === 'web') {
-    return createElement('div', {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-        gap: 10,
-        width: '100%',
-      },
-    }, children)
-  }
-  return <View className="gap-2.5">{children}</View>
 }
 
 function ServiceModal({
@@ -143,9 +131,9 @@ function ServiceModal({
 
   return (
     <Modal transparent animationType="fade" onRequestClose={() => { if (!pending) onClose() }}>
-      <View className="flex-1 items-center justify-center bg-ink/45 p-5">
-        <View className="w-full max-w-md gap-3 rounded-2xl bg-paper p-5">
-          <Text className="text-lg font-bold text-ink">{editing ? 'Editar serviço' : 'Novo serviço'}</Text>
+      <View className="flex-1 items-center justify-center bg-ink/50 p-5">
+        <View style={surfaceStyle} className="w-full max-w-md gap-4 rounded-xl border border-line bg-paper p-5">
+          <Text className="text-lg font-semibold tracking-tight text-ink">{editing ? 'Editar serviço' : 'Novo serviço'}</Text>
           <Field label="Nome" value={name} onChangeText={setName} />
           <Field label="Tempo (dias)" value={days} placeholder="0,5" onChangeText={setDays} />
           {formError ? <Banner message={formError} /> : null}

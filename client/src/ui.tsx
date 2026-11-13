@@ -12,6 +12,17 @@ import {
 import { colorLabel } from './format'
 import type { StageColor, StageListItem } from './types'
 
+export const ink = '#0f172a'
+export const mutedColor = '#64748b'
+export const line = '#e2e8f0'
+export const paper = '#ffffff'
+export const canvas = '#f4f6f8'
+export const brand = '#2563eb'
+
+export const surfaceStyle = Platform.OS === 'web'
+  ? { boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.08)' }
+  : undefined
+
 export const dotClass: Record<StageColor, string> = {
   gray: 'bg-wait',
   blue: 'bg-brand',
@@ -19,21 +30,74 @@ export const dotClass: Record<StageColor, string> = {
   green: 'bg-ok',
 }
 
-export function Screen({ children, wide = false, fill = false }: { children: ReactNode; wide?: boolean; fill?: boolean }) {
-  const width = fill ? 'max-w-none' : wide ? 'max-w-6xl' : 'max-w-3xl'
+export function Screen({ children }: { children: ReactNode }) {
   return (
-    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="grow px-6 py-6" keyboardShouldPersistTaps="handled">
-      <View className={`w-full gap-4 self-center ${width}`}>{children}</View>
+    <ScrollView className="min-w-0 flex-1 bg-canvas" contentContainerClassName="grow px-6 py-6" keyboardShouldPersistTaps="handled">
+      <View className="w-full min-w-0 max-w-none gap-4">{children}</View>
     </ScrollView>
   )
 }
 
+export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
+  return (
+    <View className="w-full flex-row items-center justify-between gap-4">
+      <View className="min-w-0 flex-1">
+        <Title>{title}</Title>
+      </View>
+      {children}
+    </View>
+  )
+}
+
+export function FormColumn({ children }: { children: ReactNode }) {
+  return <View className="w-full max-w-5xl gap-4">{children}</View>
+}
+
 export function Title({ children }: { children: string }) {
-  return <Text className="text-3xl font-bold text-ink">{children}</Text>
+  return (
+    <Text
+      className="font-display text-2xl font-bold tracking-tight text-ink"
+      style={Platform.OS === 'web' ? { fontFamily: 'Space Grotesk, Inter, "Segoe UI", sans-serif' } : undefined}
+    >
+      {children}
+    </Text>
+  )
 }
 
 export function Muted({ children }: { children: ReactNode }) {
-  return <Text className="text-[15px] leading-6 text-muted">{children}</Text>
+  return <Text className="text-sm leading-5 text-muted">{children}</Text>
+}
+
+export function FieldLabel({ children }: { children: ReactNode }) {
+  return <Text className="text-sm font-medium text-ink">{children}</Text>
+}
+
+export function SectionLabel({ children }: { children: ReactNode }) {
+  return <Text className="text-base font-semibold tracking-tight text-ink">{children}</Text>
+}
+
+export function TableHeaderText({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <Text className={`text-sm font-medium text-muted ${className}`}>{children}</Text>
+}
+
+export function BodyText({
+  children,
+  className = '',
+  numberOfLines,
+}: {
+  children: ReactNode
+  className?: string
+  numberOfLines?: number
+}) {
+  return <Text numberOfLines={numberOfLines} className={`text-sm text-ink ${className}`}>{children}</Text>
+}
+
+export function Empty({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
+  return (
+    <View className={`items-center justify-center px-4 ${compact ? 'py-6' : 'py-10'}`}>
+      <Text className="text-center text-sm text-muted">{children}</Text>
+    </View>
+  )
 }
 
 export function Field({
@@ -53,16 +117,16 @@ export function Field({
 }) {
   return (
     <View className="gap-1.5">
-      <Text className="text-sm font-semibold text-ink">{label}</Text>
+      <FieldLabel>{label}</FieldLabel>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         onBlur={onBlur}
         secureTextEntry={secureTextEntry}
         placeholder={placeholder}
-        placeholderTextColor="#5E6A78"
+        placeholderTextColor={mutedColor}
         autoCapitalize="none"
-        className="rounded-xl border border-line bg-paper px-3 py-2.5 text-base text-ink"
+        className="rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink"
       />
     </View>
   )
@@ -83,7 +147,7 @@ export function SelectField({
 }) {
   return (
     <View className="gap-1.5">
-      <Text className="text-sm font-semibold text-ink">{label}</Text>
+      <FieldLabel>{label}</FieldLabel>
       {Platform.OS === 'web' ? (
         createElement(
           'select',
@@ -94,13 +158,14 @@ export function SelectField({
             onChange: (event: { currentTarget: { value: string } }) => onValueChange(event.currentTarget.value),
             style: {
               width: '100%',
+              height: 44,
               boxSizing: 'border-box',
-              border: '1px solid #e4d9cb',
-              borderRadius: 12,
-              padding: '10px 12px',
-              background: disabled ? '#f3eee6' : '#fffcf8',
-              color: '#1c2430',
-              fontSize: 16,
+              border: `1px solid ${line}`,
+              borderRadius: 10,
+              padding: '0 12px',
+              background: disabled ? canvas : paper,
+              color: ink,
+              fontSize: 14,
               fontFamily: 'inherit',
             },
           },
@@ -144,13 +209,14 @@ export function DateField({
       onBlur,
       style: {
         width: '100%',
+        height: 44,
         boxSizing: 'border-box',
-        border: '1px solid #e4d9cb',
-        borderRadius: 8,
-        padding: '8px 10px',
-        background: disabled ? '#f3eee6' : '#fffcf8',
-        color: '#1c2430',
-        fontSize: 15,
+        border: `1px solid ${line}`,
+        borderRadius: 10,
+        padding: '0 12px',
+        background: disabled ? canvas : paper,
+        color: ink,
+        fontSize: 14,
         fontFamily: 'inherit',
       },
     })
@@ -162,9 +228,9 @@ export function DateField({
       onBlur={onBlur}
       editable={!disabled}
       placeholder="AAAA-MM-DD"
-      placeholderTextColor="#5E6A78"
+      placeholderTextColor={mutedColor}
       autoCapitalize="none"
-      className="rounded-lg border border-line bg-paper px-3 py-2 text-ink"
+      className="h-11 rounded-lg border border-line bg-paper px-3 text-sm text-ink"
     />
   )
 }
@@ -186,7 +252,7 @@ function TrashIcon() {
   if (Platform.OS === 'web') {
     return createElement(
       'svg',
-      { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: '#9b3a3a', strokeWidth: 2, 'aria-hidden': true },
+      { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: '#dc2626', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
       createElement('path', { d: 'M4 7h16' }),
       createElement('path', { d: 'M9 7V5h6v2' }),
       createElement('path', { d: 'M7 7l1 13h8l1-13' }),
@@ -200,24 +266,27 @@ export function Button({
   onPress,
   disabled,
   tone = 'primary',
+  size = 'md',
 }: {
   label: string
   onPress: () => void
   disabled?: boolean
   tone?: 'primary' | 'quiet' | 'danger'
+  size?: 'sm' | 'md'
 }) {
   const toneClass = tone === 'quiet'
-    ? 'border border-line bg-transparent'
+    ? 'border border-line bg-paper'
     : tone === 'danger'
       ? 'bg-danger'
       : 'bg-brand'
+  const sizeClass = size === 'sm' ? 'rounded-lg px-2.5 py-1.5' : 'rounded-lg px-3.5 py-2'
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      className={`items-center rounded-xl px-3.5 py-2.5 ${toneClass} ${disabled ? 'opacity-50' : ''}`}
+      className={`shrink-0 cursor-pointer flex-row items-center justify-center self-start ${sizeClass} ${toneClass} ${disabled ? 'opacity-50' : ''}`}
     >
-      <Text className={`font-bold ${tone === 'quiet' ? 'text-ink' : 'text-white'}`}>{label}</Text>
+      <Text className={`${size === 'sm' ? 'text-xs' : 'text-sm'} font-semibold ${tone === 'quiet' ? 'text-ink' : 'text-white'}`}>{label}</Text>
     </Pressable>
   )
 }
@@ -231,13 +300,64 @@ export function Banner({ message }: { message: string }) {
 }
 
 export function Card({ children }: { children: ReactNode }) {
-  return <View className="gap-2.5 rounded-2xl border border-line bg-paper p-4">{children}</View>
+  return <View style={surfaceStyle} className="gap-3 rounded-xl border border-line bg-paper p-4">{children}</View>
+}
+
+export function Panel({ children }: { children: ReactNode }) {
+  return <View style={surfaceStyle} className="gap-3 rounded-xl border border-line bg-paper p-4">{children}</View>
+}
+
+export function TableScroll({ children, onScroll }: { children: ReactNode; onScroll?: () => void }) {
+  if (Platform.OS === 'web') {
+    return createElement('div', {
+      style: { width: '100%', maxWidth: '100%', overflowX: 'auto' },
+      onScroll,
+    }, children)
+  }
+  return <ScrollView horizontal className="w-full" onScroll={onScroll} scrollEventThrottle={16}>{children}</ScrollView>
+}
+
+export function TableShell({ children, minWidth = 0 }: { children: ReactNode; minWidth?: number }) {
+  return (
+    <View
+      style={[
+        surfaceStyle,
+        Platform.OS === 'web'
+          ? { width: 'max-content', minWidth: minWidth > 0 ? `max(100%, ${minWidth}px)` : '100%' }
+          : minWidth > 0 ? { minWidth } : undefined,
+      ]}
+      className="overflow-hidden rounded-xl border border-line bg-paper"
+    >
+      {children}
+    </View>
+  )
+}
+
+export function CardGrid({ children }: { children: ReactNode }) {
+  if (Platform.OS === 'web') {
+    return createElement('div', {
+      style: {
+        display: 'grid',
+        width: '100%',
+        gap: 16,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+      },
+    }, children)
+  }
+  return <View className="gap-4">{children}</View>
+}
+
+export function GridCell({ children }: { children: ReactNode }) {
+  if (Platform.OS === 'web') {
+    return createElement('div', { style: { minWidth: 0, display: 'flex', flexDirection: 'column' } }, children)
+  }
+  return <View className="w-full">{children}</View>
 }
 
 export function Loading() {
   return (
     <View className="min-h-screen flex-1 items-center justify-center bg-canvas">
-      <ActivityIndicator color="#1D4E89" />
+      <ActivityIndicator color={brand} />
     </View>
   )
 }
@@ -251,7 +371,7 @@ export function Dots({ stages }: { stages: StageListItem[] }) {
           <View
             key={stage.id}
             accessibilityLabel={`${stage.name}: ${colorLabel(stage.color)}`}
-            className={`h-4 w-4 rounded-full ${dotClass[stage.color]}`}
+            className={`h-3.5 w-3.5 rounded-full border-2 border-paper ${dotClass[stage.color]}`}
           />
         ))}
       </View>
@@ -279,9 +399,9 @@ export function Confirm({
 }) {
   return (
     <Modal transparent animationType="fade" onRequestClose={onCancel}>
-      <View className="flex-1 items-center justify-center bg-ink/45 p-5">
-        <View className="w-full max-w-md gap-3 rounded-2xl bg-paper p-5">
-          <Text className="text-lg font-bold text-ink">{title}</Text>
+      <View className="flex-1 items-center justify-center bg-ink/50 p-5">
+        <View style={surfaceStyle} className="w-full max-w-md gap-4 rounded-xl border border-line bg-paper p-5">
+          <Text className="font-display text-lg font-semibold tracking-tight text-ink">{title}</Text>
           <Muted>{message}</Muted>
           <View className="flex-row justify-end gap-2">
             <Button label="Cancelar" tone="quiet" onPress={onCancel} />
@@ -296,7 +416,7 @@ export function Confirm({
 export function LinkText({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
-      <Text className="font-bold text-brand">{label}</Text>
+      <Text className="text-sm font-semibold text-brand">{label}</Text>
     </Pressable>
   )
 }

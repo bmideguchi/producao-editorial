@@ -3,7 +3,7 @@ import { Text, TextInput, View } from 'react-native'
 import { api } from '../api'
 import { formatAllocationDays, parseAllocationDays, scaleAllocationDays } from '../format'
 import type { ScopeLine, ServiceRecord } from '../types'
-import { Button, Card, Muted, SelectField, TrashButton } from '../ui'
+import { BodyText, Button, Card, Empty, FieldLabel, Muted, SectionLabel, SelectField, TrashButton, mutedColor } from '../ui'
 
 type Row = { key: string; serviceId: string; quantity: string; days: string }
 
@@ -74,12 +74,12 @@ export function ScopeEditor({
   if (!admin) {
     return (
       <Card>
-        <Text className="text-lg font-bold text-ink">Escopo</Text>
-        {scope.length === 0 ? <Muted>Nenhum serviço neste projeto.</Muted> : null}
+        <SectionLabel>Escopo</SectionLabel>
+        {scope.length === 0 ? <Empty compact>Nenhum serviço neste projeto.</Empty> : null}
         {scope.map((line) => (
-          <Text key={line.serviceId} className="text-ink">
+          <BodyText key={line.serviceId}>
             {line.serviceName} × {line.quantity} · {formatAllocationDays(line.allocationDays)} · total {formatAllocationDays(scaleAllocationDays(line.allocationDays, line.quantity))}
-          </Text>
+          </BodyText>
         ))}
       </Card>
     )
@@ -87,7 +87,7 @@ export function ScopeEditor({
 
   return (
     <Card>
-      <Text className="text-lg font-bold text-ink">Escopo</Text>
+      <SectionLabel>Escopo</SectionLabel>
       {daysError ? <Text className="text-sm text-danger">{daysError}</Text> : null}
       {rows.map((row) => {
         const taken = new Set(rows.filter((item) => item.key !== row.key).map((item) => item.serviceId))
@@ -114,30 +114,30 @@ export function ScopeEditor({
               />
             </View>
             <View className="w-28 gap-1.5">
-              <Text className="text-sm font-semibold text-ink">Quantidade</Text>
-              <TextInput
-                value={row.quantity}
-                onChangeText={(quantity) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, quantity } : item))}
-                onBlur={() => publish(rowsRef.current)}
-                keyboardType="number-pad"
-                className="h-11 rounded-xl border border-line bg-paper px-3 text-base text-ink"
-              />
-            </View>
-            <View className="w-28 gap-1.5">
-              <Text className="text-sm font-semibold text-ink">Duração</Text>
+              <FieldLabel>Duração</FieldLabel>
               <TextInput
                 value={row.days}
                 onChangeText={(days) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, days } : item))}
                 onBlur={() => publish(rowsRef.current)}
                 placeholder="0,5"
-                placeholderTextColor="#5E6A78"
+                placeholderTextColor={mutedColor}
                 autoCapitalize="none"
                 accessibilityLabel="Duração"
-                className="h-11 rounded-xl border border-line bg-paper px-3 text-base text-ink"
+                className="h-11 rounded-lg border border-line bg-paper px-3 text-sm text-ink"
+              />
+            </View>
+            <View className="w-28 gap-1.5">
+              <FieldLabel>Quantidade</FieldLabel>
+              <TextInput
+                value={row.quantity}
+                onChangeText={(quantity) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, quantity } : item))}
+                onBlur={() => publish(rowsRef.current)}
+                keyboardType="number-pad"
+                className="h-11 rounded-lg border border-line bg-paper px-3 text-sm text-ink"
               />
             </View>
             <View className="h-11 min-w-16 justify-center">
-              <Text className="text-sm text-muted">{total === null ? '' : formatAllocationDays(total)}</Text>
+              <Muted>{total === null ? '' : formatAllocationDays(total)}</Muted>
             </View>
             <View className="h-11 w-11 items-center justify-center">
               <TrashButton label="Remover serviço" onPress={() => publish(rows.filter((item) => item.key !== row.key))} />

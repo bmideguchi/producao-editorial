@@ -4,19 +4,29 @@
 @import "nativewind/theme";
 
 @theme {
-  --color-canvas: #f3eee6;
-  --color-paper: #fffcf8;
-  --color-ink: #1c2430;
-  --color-muted: #5e6a78;
-  --color-line: #e4d9cb;
-  --color-brand: #1d4e89;
+  --font-sans: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --color-canvas: #f4f6f8;
+  --color-paper: #ffffff;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --color-brand: #2563eb;
+  --color-accent: #eff6ff;
+  --color-sidebar: #0f172a;
+  --color-sidebar-fg: #e7edf4;
+  --color-sidebar-muted: #94a3b8;
+  --color-sidebar-accent: #1e293b;
+  --color-sidebar-line: #334155;
   --color-ok: #1f7a4d;
   --color-warn: #c48a12;
-  --color-wait: #b7b1a8;
-  --color-idle: #e4dfd6;
-  --color-off: #6f6a64;
-  --color-danger: #9b3a3a;
-  --color-danger-bg: #f8e8e6;
+  --color-wait: #94a3b8;
+  --color-idle: #e8eef3;
+  --color-off: #64748b;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
 }
 
 html,
@@ -24,4 +34,7 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  background: #f4f6f8;
+  color: #0f172a;
+  font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 }

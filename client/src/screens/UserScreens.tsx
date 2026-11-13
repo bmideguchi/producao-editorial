@@ -4,7 +4,7 @@ import { ApiError, api } from '../api'
 import { roleLabel } from '../format'
 import { go } from '../nav'
 import type { Role, SessionUser } from '../types'
-import { Banner, Button, Card, Confirm, Field, LinkText, Loading, Muted, Screen, SelectField, Title, TrashButton } from '../ui'
+import { Banner, BodyText, Button, Confirm, Empty, Field, FormColumn, LinkText, Loading, PageHeader, Screen, SelectField, TableHeaderText, TableScroll, TableShell, TrashButton } from '../ui'
 
 export function UserListScreen() {
   const [users, setUsers] = useState<SessionUser[] | null>(null)
@@ -35,30 +35,41 @@ export function UserListScreen() {
 
   return (
     <Screen>
-      <Title>Equipe</Title>
-      <LinkText label="Nova pessoa" onPress={() => go('/usuarios/novo')} />
+      <PageHeader title="Equipe">
+        <Button label="Nova pessoa" onPress={() => go('/usuarios/novo')} />
+      </PageHeader>
       {error ? <Banner message={error} /> : null}
-      {users?.map((person) => (
-        <Card key={person.id}>
-          <View className="flex-row items-start gap-3">
-            <View
-              accessibilityLabel={person.active ? 'Ativo' : 'Inativo'}
-              className={`mt-1.5 h-3 w-3 rounded-full ${person.active ? 'bg-ok' : 'bg-wait'}`}
-            />
-            <View className="min-w-0 flex-1 gap-1">
-              <LinkText label={person.name} onPress={() => go(`/usuarios/${person.id}`)} />
-              <Muted>
-                {person.email} · {roleLabel(person.role)}
-              </Muted>
+      {users?.length === 0 ? <Empty>Nenhuma pessoa na equipe.</Empty> : null}
+      {users && users.length > 0 ? (
+        <TableScroll>
+          <TableShell minWidth={720}>
+            <View className="w-full flex-row items-center border-b border-line bg-canvas px-4 py-2.5">
+              <TableHeaderText className="flex-1">Nome</TableHeaderText>
+              <TableHeaderText className="w-64">E-mail</TableHeaderText>
+              <TableHeaderText className="w-36">Papel</TableHeaderText>
+              <View className="w-12" />
             </View>
-            <TrashButton
-              label={`Excluir ${person.name}`}
-              disabled={deleting}
-              onPress={() => setPendingDelete(person)}
-            />
-          </View>
-        </Card>
-      ))}
+            {users.map((person) => (
+              <View key={person.id} className="w-full flex-row items-center border-b border-line px-4 py-3 hover:bg-canvas">
+                <View className="min-w-0 flex-1 flex-row items-center gap-2 pr-3">
+                  <View
+                    accessibilityLabel={person.active ? 'Ativo' : 'Inativo'}
+                    className={`h-2.5 w-2.5 rounded-full ${person.active ? 'bg-ok' : 'bg-wait'}`}
+                  />
+                  <LinkText label={person.name} onPress={() => go(`/usuarios/${person.id}`)} />
+                </View>
+                <BodyText className="w-64 pr-3">{person.email}</BodyText>
+                <BodyText className="w-36">{roleLabel(person.role)}</BodyText>
+                <TrashButton
+                  label={`Excluir ${person.name}`}
+                  disabled={deleting}
+                  onPress={() => setPendingDelete(person)}
+                />
+              </View>
+            ))}
+          </TableShell>
+        </TableScroll>
+      ) : null}
       {pendingDelete ? (
         <Confirm
           title="Excluir membro"
@@ -203,7 +214,7 @@ export function UserFormScreen({ id }: { id: string | null }) {
   if (id && missing) {
     return (
       <Screen>
-        <Title>Editar membro</Title>
+        <PageHeader title="Editar membro" />
         {error ? <Banner message={error} /> : null}
       </Screen>
     )
@@ -212,7 +223,8 @@ export function UserFormScreen({ id }: { id: string | null }) {
   if (!id) {
     return (
       <Screen>
-        <Title>Nova pessoa</Title>
+        <PageHeader title="Nova pessoa" />
+        <FormColumn>
         {error ? <Banner message={error} /> : null}
         <Field label="Nome" value={name} onChangeText={setName} />
         <Field label="E-mail" value={email} onChangeText={setEmail} />
@@ -229,6 +241,7 @@ export function UserFormScreen({ id }: { id: string | null }) {
         />
         <Field label="Senha inicial" value={password} onChangeText={setPassword} secureTextEntry />
         <Button label={pending ? 'Salvando...' : 'Salvar'} disabled={pending} onPress={() => void create()} />
+        </FormColumn>
       </Screen>
     )
   }
@@ -237,7 +250,8 @@ export function UserFormScreen({ id }: { id: string | null }) {
 
   return (
     <Screen>
-      <Title>Editar membro</Title>
+      <PageHeader title="Editar membro" />
+      <FormColumn>
       {error ? <Text className="text-sm text-danger">{error}</Text> : null}
       <View className={columns}>
         <View className="min-w-72 flex-1 gap-4">
@@ -275,6 +289,7 @@ export function UserFormScreen({ id }: { id: string | null }) {
           />
         </View>
       </View>
+      </FormColumn>
     </Screen>
   )
 }
